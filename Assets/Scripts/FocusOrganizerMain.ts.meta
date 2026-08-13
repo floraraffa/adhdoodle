@@ -1,0 +1,52 @@
+- !<AssetImportMetadata/19aa4c8c-2814-4b00-ae3e-06bf1304d0fc>
+  ImportedAssetIds:
+    TypeScriptAsset: !<reference> bee80c5b-1591-4620-8ba6-31f2de6da9c8
+  ImporterName: TypeScriptAssetImporter
+  PrimaryAsset: !<reference> bee80c5b-1591-4620-8ba6-31f2de6da9c8
+  PackageType: NotAPackage
+  LegacyPackagePolicy: ~
+  ExtraData:
+    {}
+  AssetDataMap:
+    TypeScriptAsset: !<own> 69db181f-9fb3-4558-91ed-9f134c3aa9ea
+  DependentFiles:
+    []
+  ImporterSettings: !<AssetImporterSettings>
+    {}
+  CompressionSettings: !<own> 00000000-0000-0000-0000-000000000000
+- !<TypeScriptAssetData/69db181f-9fb3-4558-91ed-9f134c3aa9ea>
+  SvgIcon: ""
+  SetupScript:
+    code: ""
+  Description: ""
+  VersionMajor: 0
+  VersionMinor: 0
+  VersionPatch: 0
+  VersionPrerelease: ""
+  UpdateOrder: 0
+  ComponentUid: e9ffe824-23f5-4ca3-9bf6-fc154f16f1bb
+  ExportUid: 00000000-0000-0000-0000-000000000000
+  PackagePolicy: CanBeUnpacked
+  ScriptInputsHidden:
+    panel: false
+    reminderMinutes: false
+    sfxVolume: false
+  ScriptTypesHidden:
+    {}
+  ReadMe: !<reference> 00000000-0000-0000-0000-000000000000
+  DeclarationFile: !<reference> 00000000-0000-0000-0000-000000000000
+  Tags:
+    []
+  Attachments:
+    []
+  DefaultScriptInputs:
+    - panel: !<MappingBased.AssignableType_1> 00000000-0000-0000-0000-000000000000
+      sfxVolume: 0.650000
+      reminderMinutes: !<float> 5.000000
+  ScriptTypes:
+    -
+      {}
+  InputLines:
+    - // @input AssignableType_1 panel
+    - // @input float sfxVolume = 0.65
+    - // @input float reminderMinutes = 5
