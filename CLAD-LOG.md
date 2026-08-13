@@ -64,3 +64,14 @@ Flor delivered the visual direction: a hand-drawn spiral notebook agenda (pastel
 Structural work done ahead of the assets:
 - **6 categories → 3 tabs** (Home / Work / Me time) per the design, including automatic migration of previously saved 6-card states (Trabajo→Work, Casa+Comida→Home, Relax+Amigos+Hiperfoco→Me time). Verified: an old saved state restored with merged cards.
 - **Priority badges**: rows now show 🔥 (do first) / ⭐ (next) / 🍃 (later) instead of P1/P2/Pn.
+
+## Day 2 — Aug 14, 2026 (the kawaii notebook skin)
+
+Flor produced the full asset kit (notebook pages with baked tabs/spiral per category, washi task strips with baked checkboxes, DO FIRST/NEXT/LATER badges, colored play buttons, round icon bar, the cloud mascot with speech bubble). Claude integrated it as a complete visual layer swap with zero logic changes:
+
+- Runtime `Component.Image` quads for every visual (pages, strips, badges, plays, icons, cloud) — runtime-created Images ship without a material, so each clones the UIKit `Image.mat`; textures assigned per element.
+- Baked-in elements became **invisible hotspots**: the strip checkbox completes the task, the side tabs (HOME/WORK/ME TIME) jump between pages, the whole strip opens the task post-it.
+- The bottom bar follows the design exactly (add / priority± / time / remind / more); secondary actions (−5m, skip, list scroll) moved into a "more" popover.
+- **The AI coach now speaks from the cloud's bubble** — its real RSG-generated messages render inside the mascot's speech balloon, and the Focus-Mode companion chip is now the cloud itself with the timer in its bubble.
+- Localized date on the page header; priority badges render as the design's stamped labels; done tasks show ✓ and drop their badge.
+- Debug note: preview camera exploration required querying the runtime scene for the panel's world position (0,0,−110) after camera moves lost it.

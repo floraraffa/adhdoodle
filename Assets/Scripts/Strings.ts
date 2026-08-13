@@ -79,6 +79,12 @@ const EN = {
   focusDone: "✓ done",
   focusNudges: ["Hey! Focus — you're almost done!", "Let's finish this first!", "Back to it. Small step, big win."],
   badges: ["🔥", "⭐", "🍃"],
+  formatDate: () => {
+    const now = new Date()
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    return `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`
+  },
 }
 
 const ES: typeof EN = {
@@ -145,6 +151,12 @@ const ES: typeof EN = {
   focusDone: "✓ listo",
   focusNudges: ["¡Hey! Foco — ¡ya casi terminás!", "¡Terminemos esto primero!", "Volvé. Paso chico, victoria grande."],
   badges: ["🔥", "⭐", "🍃"],
+  formatDate: () => {
+    const now = new Date()
+    const days = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"]
+    const months = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+    return `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`
+  },
 }
 
 export const STR = LANG === "es" ? ES : EN

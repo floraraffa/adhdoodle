@@ -1,24 +1,60 @@
 import {Billboard} from "SpectaclesInteractionKit.lspkg/Components/Interaction/Billboard/Billboard"
+import {Interactable} from "SpectaclesInteractionKit.lspkg/Components/Interaction/Interactable/Interactable"
 import WorldCameraFinderProvider from "SpectaclesInteractionKit.lspkg/Providers/CameraProvider/WorldCameraFinderProvider"
 import Event, {PublicApi} from "SpectaclesInteractionKit.lspkg/Utils/Event"
 import {BackPlate} from "SpectaclesUIKit.lspkg/Scripts/BackPlate"
 import {FocusCardState, FocusTaskState} from "./FocusOrganizerState"
 import {STR} from "./Strings"
 
-const CARD_WIDTH = 44
-const CARD_HEIGHT = 46
-const ROW_Y = [9, 3, -3, -9]
-const COLORS = [
-  new vec4(0.67, 0.81, 1.00, 1), new vec4(0.84, 0.73, 0.97, 1),
-  new vec4(0.65, 0.91, 0.84, 1), new vec4(1.00, 0.79, 0.63, 1),
-  new vec4(0.98, 0.72, 0.83, 1), new vec4(0.85, 0.92, 0.64, 1),
+// ——— Assets del diseño "cuaderno kawaii" (Flor) ———
+const TEX_PAGES = [
+  requireAsset("../DesignAssets/paper-page-home.png") as Texture,
+  requireAsset("../DesignAssets/paper-page-work.png") as Texture,
+  requireAsset("../DesignAssets/paper-page-me.png") as Texture,
 ]
+const TEX_WASHI = [
+  requireAsset("../DesignAssets/washi-yellow.png") as Texture,
+  requireAsset("../DesignAssets/washi-pink.png") as Texture,
+  requireAsset("../DesignAssets/washi-blue.png") as Texture,
+  requireAsset("../DesignAssets/washi-green.png") as Texture,
+]
+const TEX_BADGES = [
+  requireAsset("../DesignAssets/badge-first.png") as Texture,
+  requireAsset("../DesignAssets/badge-next.png") as Texture,
+  requireAsset("../DesignAssets/badge-later.png") as Texture,
+]
+const TEX_PLAY = [
+  requireAsset("../DesignAssets/play-red.png") as Texture,
+  requireAsset("../DesignAssets/play-lilac.png") as Texture,
+  requireAsset("../DesignAssets/play-green.png") as Texture,
+  requireAsset("../DesignAssets/play-green2.png") as Texture,
+]
+const TEX_ADD_TASK = requireAsset("../DesignAssets/add-a-task.png") as Texture
+const TEX_ICONS = {
+  add: requireAsset("../DesignAssets/icon-add.png") as Texture,
+  priorityUp: requireAsset("../DesignAssets/icon-priority-up.png") as Texture,
+  priorityDown: requireAsset("../DesignAssets/icon-priority-down.png") as Texture,
+  time: requireAsset("../DesignAssets/icon-time.png") as Texture,
+  remind: requireAsset("../DesignAssets/icon-remind.png") as Texture,
+  more: requireAsset("../DesignAssets/icon-more.png") as Texture,
+}
+const TEX_CLOUD = requireAsset("../DesignAssets/cloud.png") as Texture
+// Los Image creados en runtime no traen material: se clona el del UIKit.
+const IMAGE_MATERIAL = requireAsset("../../Packages/SpectaclesUIKit.lspkg/Materials/Image.mat") as Material
+
+// Página 800×1024 px → 39×50 cm (factor 0.0488 cm/px)
+const PAGE_W = 39
+const PAGE_H = 50
+const ROW_Y = [9.0, 2.2, -4.6, -11.4]
+const ROW_W = 25
+const ROW_H = 6.9
 
 const CONTROL_COLOR = new vec4(0.96, 0.97, 1.00, 1)
 const POSTIT_COLOR = new vec4(1.00, 0.93, 0.55, 1)
-const SELECTED_ROW_COLOR = new vec4(0.84, 0.91, 1.00, 1)
-const RUNNING_ROW_COLOR = new vec4(1.00, 0.86, 0.58, 1)
-const TEXT_COLOR = new vec4(0.42, 0.31, 0.58, 1)
+const RUNNING_TINT = new vec4(1.0, 0.88, 0.72, 1)
+const NORMAL_TINT = new vec4(1, 1, 1, 1)
+const TEXT_COLOR = new vec4(0.25, 0.2, 0.35, 1)
+const TEXT_SOFT = new vec4(0.42, 0.31, 0.58, 1)
 
 type PlateInternals = {
   roundedRectangle: {gradient: boolean; backgroundColor: vec4; opacity: number}
@@ -41,6 +77,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private readonly noteEvent = new Event<TaskTextEdit>()
   private readonly estimateEvent = new Event<number>()
   private readonly checkInEvent = new Event<boolean>()
+  private readonly cardSelectEvent = new Event<number>()
 
   private cardRoots: SceneObject[] = []
   private cardSummaries: Text[] = []
@@ -49,11 +86,14 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private targetScales: vec3[] = []
   private detailRoot: SceneObject | null = null
   private taskLabels: Text[] = []
-  private taskPlates: BackPlate[] = []
-  private priorityLabels: Text[] = []
-  private playLabels: Text[] = []
+  private rowImages: Image[] = []
+  private badgeImages: Image[] = []
+  private badgeObjects: SceneObject[] = []
+  private playImages: Image[] = []
+  private rowHasTask: boolean[] = [false, false, false, false]
   private coachText: Text | null = null
   private reminderLabel: Text | null = null
+  private moreRoot: SceneObject | null = null
   private selectedCard = 0
   private selectedTask = 0
   private scrollOffset = 0
@@ -94,6 +134,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   get onCheckIn(): PublicApi<boolean> { return this.checkInEvent.publicApi() }
   get onFocusPause(): PublicApi<void> { return this.focusPauseEvent.publicApi() }
   get onFocusDone(): PublicApi<void> { return this.focusDoneEvent.publicApi() }
+  /** Tap en los tabs laterales del cuaderno (HOME / WORK / ME TIME). */
+  get onCardSelected(): PublicApi<number> { return this.cardSelectEvent.publicApi() }
 
   onAwake(): void {
     const authored = this.sceneObject.getTransform().getLocalPosition()
@@ -148,16 +190,22 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.applyTunnel()
   }
 
+  // ——— La página del cuaderno ———
+
   private createCard(index: number): void {
     const root = this.obj(this.sceneObject, `CarouselCard-${index}`, vec3.zero())
-    const plate = root.createComponent(BackPlate.getTypeName()) as BackPlate
-    plate.size = new vec2(CARD_WIDTH, CARD_HEIGHT)
-    plate.style = "simple"
-    this.tint(plate, COLORS[index])
-    this.makeDecorative(plate)
-    this.addText(root, STR.categories[index], new vec3(0, 19.2, 0.7), 58, 39, 3)
-    const summary = this.addText(root, STR.taskCount(0, 0), new vec3(0, 15.7, 0.7), 31, 36, 2)
-    const preview = this.addText(root, "", new vec3(0, 0.5, 0.7), 36, 34, 23)
+    this.addImage(root, "Page", TEX_PAGES[index % TEX_PAGES.length], new vec3(0, 0, 0), PAGE_W, PAGE_H)
+    // Título sobre la cinta lila; fecha sobre la tira rosa; contador debajo.
+    this.addText(root, STR.categories[index], new vec3(-5.4, 20.3, 0.7), 46, 12, 3.6)
+    this.addText(root, STR.formatDate(), new vec3(-6.6, 16.5, 0.7), 18, 8.6, 1.6)
+    const summary = this.addText(root, STR.taskCount(0, 0), new vec3(-6.2, 14.4, 0.7), 18, 12, 1.5)
+    // La nube (la IA) con su globito, arriba a la derecha como en el diseño.
+    this.addImage(root, "Cloud", TEX_CLOUD, new vec3(8.4, 18.4, 0.6), 12, 9.4)
+    const preview = this.addText(root, "", new vec3(-1, 0.5, 0.7), 30, 26, 22)
+    // Tabs laterales del cuaderno (horneados en la página) → hotspots invisibles.
+    this.addHotspot(root, "TabHome", new vec3(17.6, 14.0, 0.8), 4.6, 7, () => this.cardSelectEvent.invoke(0))
+    this.addHotspot(root, "TabWork", new vec3(17.6, 4.3, 0.8), 4.6, 7, () => this.cardSelectEvent.invoke(1))
+    this.addHotspot(root, "TabMe", new vec3(17.6, -6.3, 0.8), 4.6, 7, () => this.cardSelectEvent.invoke(2))
     this.cardRoots.push(root)
     this.cardSummaries.push(summary)
     this.cardPreviews.push(preview)
@@ -165,32 +213,68 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.targetScales.push(vec3.one())
   }
 
+  // ——— Las filas washi + barra de iconos ———
+
   private createDetails(): void {
     this.detailRoot = this.obj(this.cardRoots[0], "ActiveCardTasks", vec3.zero())
     for (let row = 0; row < 4; row++) {
-      const rowRoot = this.obj(this.detailRoot, `Row-${row}`, new vec3(0, ROW_Y[row], 1))
+      const rowRoot = this.obj(this.detailRoot, `Row-${row}`, new vec3(-0.7, ROW_Y[row], 1))
       this.rowRoots.push(rowRoot)
-      this.taskLabels[row] = this.addSurfaceButton(rowRoot, `Task-${row}`, STR.addTask, new vec3(-9, 0, 0), 20, 4.8, () => this.onRowPressed(this.visibleIndex(row)), (plate) => { this.taskPlates[row] = plate })
-      this.priorityLabels[row] = this.addSurfaceButton(rowRoot, `Priority-${row}`, "P2", new vec3(3.2, 0, 0), 3.8, 4.2, () => { this.selectedTask = this.visibleIndex(row) })
-      this.playLabels[row] = this.addSurfaceButton(rowRoot, `Play-${row}`, "▶", new vec3(7.3, 0, 0), 3.8, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.playEvent.invoke(i) })
-      this.addSurfaceButton(rowRoot, `Skip-${row}`, STR.skip, new vec3(12.3, 0, 0), 5.8, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.skipEvent.invoke(i) })
-      this.addSurfaceButton(rowRoot, `Done-${row}`, "✓", new vec3(17.5, 0, 0), 4.2, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.doneEvent.invoke(i) })
+      // La tira washi entera es el botón que abre el post-it de la tarea.
+      const strip = this.addImage(rowRoot, "Strip", TEX_WASHI[row % TEX_WASHI.length], new vec3(0, 0, 0), ROW_W, ROW_H)
+      this.rowImages[row] = strip.image
+      this.makeInteractive(strip.object, ROW_W, ROW_H, () => this.onRowPressed(this.visibleIndex(row)))
+      // Texto: título + reloj (el checkbox viene horneado en la tira).
+      this.taskLabels[row] = this.addText(rowRoot, "", new vec3(-0.6, 0, 0.5), 22, 14.5, 4.6)
+      // Badge de prioridad (imagen DO FIRST / NEXT / LATER).
+      const badge = this.addImage(rowRoot, "Badge", TEX_BADGES[2], new vec3(6.2, -1.5, 0.5), 5.6, 1.85)
+      this.badgeImages[row] = badge.image
+      this.badgeObjects[row] = badge.object
+      // Play redondo del color de la fila.
+      const play = this.addImage(rowRoot, "Play", TEX_PLAY[row % TEX_PLAY.length], new vec3(10.1, 0, 0.5), 3.4, 3.3)
+      this.playImages[row] = play.image
+      this.makeInteractive(play.object, 3.8, 3.8, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.playEvent.invoke(i) })
+      // Hotspot sobre el checkbox horneado (izquierda de la tira) → completar.
+      this.addHotspot(rowRoot, `Done-${row}`, new vec3(-9.9, 0.4, 0.6), 2.8, 2.8, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.doneEvent.invoke(i) })
     }
+    // "+ Add a task" punteado, como en el diseño.
+    const addTask = this.addImage(this.detailRoot, "AddTask", TEX_ADD_TASK, new vec3(-0.7, -16.4, 1), 20.5, 3)
+    this.makeInteractive(addTask.object, 20.5, 3, () => this.openFirstEmpty())
+    // Barra inferior lila (horneada en la página) con los 6 iconos redondos.
     this.controlsRoot = this.obj(this.detailRoot, "Controls", new vec3(0, 0, 1))
-    this.addSurfaceButton(this.controlsRoot, "NewTask", STR.newTaskButton, new vec3(-17, -15, 0), 7.5, 3.5, () => this.openFirstEmpty())
-    this.addSurfaceButton(this.controlsRoot, "PriorityUp", STR.priorityUp, new vec3(-9, -15, 0), 7.2, 3.5, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: -1}))
-    this.addSurfaceButton(this.controlsRoot, "PriorityDown", STR.priorityDown, new vec3(-1.2, -15, 0), 7.2, 3.5, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: 1}))
-    this.addSurfaceButton(this.controlsRoot, "MinusTime", STR.minus5, new vec3(5.2, -15, 0), 5, 3.5, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: -5}))
-    this.addSurfaceButton(this.controlsRoot, "PlusTime", STR.plus5, new vec3(10.7, -15, 0), 5, 3.5, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: 5}))
-    this.reminderLabel = this.addSurfaceButton(this.controlsRoot, "Reminder", STR.bellOn(5), new vec3(17.3, -15, 0), 7, 3.5, () => this.reminderEvent.invoke())
-    this.addSurfaceButton(this.controlsRoot, "ScrollUp", STR.listUp, new vec3(-8, -18.5, 0), 6.5, 2.6, () => this.scrollTasks(-1))
-    this.addText(this.controlsRoot, STR.indexHint, new vec3(0, -18.5, 0), 26, 8.5, 1.5)
-    this.addSurfaceButton(this.controlsRoot, "ScrollDown", STR.listDown, new vec3(8, -18.5, 0), 6.5, 2.6, () => this.scrollTasks(1))
-    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(0, -20.7, 1), 29, 38, 2)
-    this.checkInRoot = this.obj(this.detailRoot, "CheckIn", new vec3(0, -12, 3))
+    const iconY = -20.6
+    const icons: [string, Texture, () => void][] = [
+      ["IconAdd", TEX_ICONS.add, () => this.openFirstEmpty()],
+      ["IconPriUp", TEX_ICONS.priorityUp, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: -1})],
+      ["IconPriDown", TEX_ICONS.priorityDown, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: 1})],
+      ["IconTime", TEX_ICONS.time, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: 5})],
+      ["IconRemind", TEX_ICONS.remind, () => this.reminderEvent.invoke()],
+      ["IconMore", TEX_ICONS.more, () => this.toggleMore()],
+    ]
+    const startX = -14
+    for (let i = 0; i < icons.length; i++) {
+      const [name, tex, action] = icons[i]
+      const icon = this.addImage(this.controlsRoot, name, tex, new vec3(startX + i * 5.6, iconY, 0.4), 3.4, 4.3)
+      this.makeInteractive(icon.object, 4.4, 4.8, action)
+    }
+    this.reminderLabel = this.addText(this.controlsRoot, STR.bellOn(5), new vec3(9.4, -18.3, 0.4), 14, 5, 1.3)
+    // Menú "more": acciones secundarias que no entran en la barra.
+    this.moreRoot = this.obj(this.detailRoot, "MoreMenu", new vec3(0, -14.2, 2.5))
+    this.addSurfaceButton(this.moreRoot, "MinusTime", STR.minus5, new vec3(-9.4, 0, 0), 5, 3, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: -5}))
+    this.addSurfaceButton(this.moreRoot, "SkipTask", STR.skip, new vec3(-3.2, 0, 0), 6, 3, () => this.skipEvent.invoke(this.selectedTask))
+    this.addSurfaceButton(this.moreRoot, "ScrollUp", STR.listUp, new vec3(3.2, 0, 0), 6, 3, () => this.scrollTasks(-1))
+    this.addSurfaceButton(this.moreRoot, "ScrollDown", STR.listDown, new vec3(9.4, 0, 0), 6, 3, () => this.scrollTasks(1))
+    this.moreRoot.enabled = false
+    // El coach habla desde el globito de la nube (arriba a la derecha).
+    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.6, 20.3, 0.9), 13, 5.6, 3.4)
+    this.checkInRoot = this.obj(this.detailRoot, "CheckIn", new vec3(0, -14.2, 3))
     this.addSurfaceButton(this.checkInRoot, "CheckFocused", STR.checkFocused, new vec3(-5.6, 0, 0), 8, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(false) })
     this.addSurfaceButton(this.checkInRoot, "CheckDrifted", STR.checkDrifted, new vec3(5.6, 0, 0), 10.5, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(true) })
     this.checkInRoot.enabled = false
+  }
+
+  private toggleMore(): void {
+    if (this.moreRoot) this.moreRoot.enabled = !this.moreRoot.enabled
   }
 
   // ——— Focus Mode: espacio visual limpio — solo la tarea y el reloj ———
@@ -212,6 +296,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     if (active) {
       this.closeNotePaper()
       this.hideCheckIn()
+      if (this.moreRoot) this.moreRoot.enabled = false
       if (this.focusNudge) this.focusNudge.text = ""
       for (const root of this.cardRoots) root.enabled = false
     } else {
@@ -235,19 +320,16 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     if (this.focusNudge) this.focusNudge.text = ""
   }
 
-  // ——— Chip de foco: memoria externa en la periferia ———
+  // ——— La nube que te acompaña: chip de foco en la periferia ———
 
   private createFocusChip(): void {
-    // Hijo del panel para heredar el contexto de render que ya funciona;
-    // su posición se pisa cada frame en coordenadas de mundo para seguir a la cámara.
+    // Hija del panel para heredar el contexto de render; su posición se pisa
+    // cada frame en coordenadas de mundo para seguir a la cámara.
     this.chipRoot = this.obj(this.sceneObject, "FocusChip", vec3.zero())
-    const plate = this.chipRoot.createComponent(BackPlate.getTypeName()) as BackPlate
-    plate.size = new vec2(7, 3)
-    plate.style = "simple"
-    this.tint(plate, POSTIT_COLOR)
-    this.makeDecorative(plate)
-    this.chipTitle = this.addText(this.chipRoot, "", new vec3(0, 0.7, 0.5), 9, 6.6, 1.3)
-    this.chipInfo = this.addText(this.chipRoot, "", new vec3(0, -0.6, 0.5), 7, 6.6, 1.3)
+    this.addImage(this.chipRoot, "CloudChip", TEX_CLOUD, new vec3(0, 0, 0), 11, 8.6)
+    // Los textos van sobre el globito de la nube (mitad izquierda-superior del asset).
+    this.chipTitle = this.addText(this.chipRoot, "", new vec3(-2.2, 2.1, 0.5), 10, 4.6, 1.6)
+    this.chipInfo = this.addText(this.chipRoot, "", new vec3(-2.2, 0.7, 0.5), 9, 4.6, 1.4)
     this.chipRoot.enabled = false
   }
 
@@ -259,11 +341,10 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
       return
     }
     this.chipRoot.enabled = true
-    if (this.chipTitle) this.chipTitle.text = data.title.length > 20 ? data.title.substring(0, 19) + "…" : data.title
+    if (this.chipTitle) this.chipTitle.text = data.title.length > 16 ? data.title.substring(0, 15) + "…" : data.title
     const minutes = Math.floor(data.remainingSeconds / 60)
     const seconds = Math.floor(data.remainingSeconds % 60)
-    const clock = `⏱ ${minutes}:${seconds < 10 ? "0" : ""}${seconds}`
-    if (this.chipInfo) this.chipInfo.text = data.step ? `${clock} · ${data.step.length > 24 ? data.step.substring(0, 23) + "…" : data.step}` : clock
+    if (this.chipInfo) this.chipInfo.text = `⏱ ${minutes}:${seconds < 10 ? "0" : ""}${seconds}`
     this.followCamera()
   }
 
@@ -304,7 +385,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private applyTunnel(): void {
     if (this.controlsRoot) this.controlsRoot.enabled = this.tunnelIndex === null
     for (let row = 0; row < this.rowRoots.length; row++) {
-      this.rowRoots[row].enabled = this.tunnelIndex === null || this.visibleIndex(row) === this.tunnelIndex
+      const tunnelOk = this.tunnelIndex === null || this.visibleIndex(row) === this.tunnelIndex
+      this.rowRoots[row].enabled = this.rowHasTask[row] && tunnelOk
     }
   }
 
@@ -324,7 +406,6 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.addSurfaceButton(this.notePaper, "NoteClose", "✕", new vec3(9.2, 9.3, 0.7), 2.8, 2.6, () => this.closeNotePaper())
     this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(0, 3.5, 0.7), 20, 7.5, () => this.openNoteKeyboard())
     this.noteSteps = this.addText(this.notePaper, "", new vec3(0, -3.2, 0.7), 18, 20, 5.6)
-    // Tiempo editable a la vista (− ⏱ +) y el botón de IA con la palabra completa.
     // Ajuste fino de a 1 minuto en el post-it; el ajuste grueso de ±5 vive en la card.
     this.addSurfaceButton(this.notePaper, "NoteMinus", "−", new vec3(-8.7, -8.2, 0.7), 2.6, 2.8, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: -1}))
     this.noteEstimate = this.addText(this.notePaper, "⏱ 15m", new vec3(-4.6, -8.2, 0.7), 24, 5.2, 2.8)
@@ -374,23 +455,23 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   }
 
   private renderTask(row: number, task?: FocusTaskState): void {
+    this.rowHasTask[row] = !!task
     if (!task) {
-      this.taskLabels[row].text = STR.addTask
-      this.priorityLabels[row].text = "—"
-      this.playLabels[row].text = "▶"
-      this.tint(this.taskPlates[row], CONTROL_COLOR)
+      this.applyTunnel()
       return
     }
     const actualIndex = this.scrollOffset + row
-    const selected = actualIndex === this.selectedTask ? "● " : ""
     const minutes = Math.floor(task.remainingSeconds / 60)
     const seconds = Math.floor(task.remainingSeconds % 60)
     const clock = `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`
     const status = task.status === "done" ? " ✓" : task.status === "skipped" ? " ↷" : ""
-    this.taskLabels[row].text = `${selected}${this.short(task.title)}\n${clock}${status}`
-    this.priorityLabels[row].text = STR.badges[Math.min(task.priority - 1, STR.badges.length - 1)]
-    this.playLabels[row].text = task.status === "running" ? "Ⅱ" : "▶"
-    this.tint(this.taskPlates[row], task.status === "running" ? RUNNING_ROW_COLOR : actualIndex === this.selectedTask ? SELECTED_ROW_COLOR : CONTROL_COLOR)
+    const selected = actualIndex === this.selectedTask ? "● " : ""
+    this.taskLabels[row].text = `${selected}${this.short(task.title)}\n⏱ ${clock}${status}`
+    if (this.badgeObjects[row]) this.badgeObjects[row].enabled = task.status !== "done"
+    if (this.badgeImages[row]) this.badgeImages[row].mainPass.baseTex = TEX_BADGES[Math.min(task.priority - 1, TEX_BADGES.length - 1)]
+    if (this.rowImages[row]) this.rowImages[row].mainPass.baseColor = task.status === "running" ? RUNNING_TINT : NORMAL_TINT
+    if (this.playImages[row]) this.playImages[row].mainPass.baseColor = task.status === "running" ? new vec4(0.75, 0.75, 0.75, 1) : NORMAL_TINT
+    this.applyTunnel()
   }
 
   setCarouselDrag(progress: number): void {
@@ -479,6 +560,34 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     global.textInputSystem.requestKeyboard(options)
   }
 
+  // ——— Helpers visuales ———
+
+  private addImage(parent: SceneObject, name: string, texture: Texture, position: vec3, width: number, height: number): {object: SceneObject; image: Image} {
+    const object = this.obj(parent, name, position)
+    object.getTransform().setLocalScale(new vec3(width, height, 1))
+    const image = object.createComponent("Component.Image") as Image
+    image.mainMaterial = IMAGE_MATERIAL.clone() as Material
+    image.mainPass.baseTex = texture
+    return {object, image}
+  }
+
+  /** Zona interactiva invisible (para elementos horneados en las imágenes). */
+  private addHotspot(parent: SceneObject, name: string, position: vec3, width: number, height: number, press: () => void): void {
+    const object = this.obj(parent, name, position)
+    this.makeInteractive(object, width, height, press)
+  }
+
+  private makeInteractive(object: SceneObject, width: number, height: number, press: () => void): void {
+    const collider = object.createComponent("Physics.ColliderComponent") as ColliderComponent
+    const shape = Shape.createBoxShape()
+    // Si el objeto está escalado (imágenes), el collider hereda la escala → compensar.
+    const scale = object.getTransform().getLocalScale()
+    shape.size = new vec3(width / Math.max(0.001, scale.x), height / Math.max(0.001, scale.y), 4)
+    collider.shape = shape
+    const interactable = object.createComponent(Interactable.getTypeName()) as Interactable
+    interactable.onTriggerEnd.add(press)
+  }
+
   private addSurfaceButton(parent: SceneObject, name: string, label: string, position: vec3, width: number, height: number, press: () => void, capturePlate?: (plate: BackPlate) => void): Text {
     const object = this.obj(parent, name, position)
     const plate = object.createComponent(BackPlate.getTypeName()) as BackPlate
@@ -519,7 +628,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.disableInteractionPlane(plate)
     plate.onInitialized.add(() => { const p = plate as unknown as PlateInternals; p.collider.destroy(); p._interactionPlane.destroy(); plate.interactable.destroy() })
   }
-  private short(value: string): string { return value.length > 22 ? value.substring(0, 20) + "…" : value }
+  private short(value: string): string { return value.length > 18 ? value.substring(0, 17) + "…" : value }
   private visibleIndex(row: number): number { return this.scrollOffset + row }
   // Las tareas se ven desde el carrusel: lista tipo checklist en las cards vecinas.
   private previewTasks(card: FocusCardState): string {
