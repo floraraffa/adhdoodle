@@ -93,7 +93,6 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private rowHasTask: boolean[] = [false, false, false, false]
   private coachText: Text | null = null
   private reminderLabel: Text | null = null
-  private moreRoot: SceneObject | null = null
   private selectedCard = 0
   private selectedTask = 0
   private scrollOffset = 0
@@ -249,22 +248,16 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
       ["IconPriDown", TEX_ICONS.priorityDown, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: 1})],
       ["IconTime", TEX_ICONS.time, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: 5})],
       ["IconRemind", TEX_ICONS.remind, () => this.reminderEvent.invoke()],
-      ["IconMore", TEX_ICONS.more, () => this.toggleMore()],
+      ["IconMore", TEX_ICONS.more, () => this.showMoreTasks()],
     ]
-    const startX = -14
+    // Centrados dentro de la barra horneada (≈ ±14 cm de ancho útil).
+    const startX = -12.25
     for (let i = 0; i < icons.length; i++) {
       const [name, tex, action] = icons[i]
-      const icon = this.addImage(this.controlsRoot, name, tex, new vec3(startX + i * 5.6, iconY, 0.4), 3.4, 4.3)
-      this.makeInteractive(icon.object, 4.4, 4.8, action)
+      const icon = this.addImage(this.controlsRoot, name, tex, new vec3(startX + i * 4.9, iconY, 0.4), 3.2, 4.0)
+      this.makeInteractive(icon.object, 4.2, 4.6, action)
     }
-    this.reminderLabel = this.addText(this.controlsRoot, STR.bellOn(5), new vec3(9.4, -18.3, 0.4), 14, 5, 1.3)
-    // Menú "more": acciones secundarias que no entran en la barra.
-    this.moreRoot = this.obj(this.detailRoot, "MoreMenu", new vec3(0, -14.2, 2.5))
-    this.addSurfaceButton(this.moreRoot, "MinusTime", STR.minus5, new vec3(-9.4, 0, 0), 5, 3, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: -5}))
-    this.addSurfaceButton(this.moreRoot, "SkipTask", STR.skip, new vec3(-3.2, 0, 0), 6, 3, () => this.skipEvent.invoke(this.selectedTask))
-    this.addSurfaceButton(this.moreRoot, "ScrollUp", STR.listUp, new vec3(3.2, 0, 0), 6, 3, () => this.scrollTasks(-1))
-    this.addSurfaceButton(this.moreRoot, "ScrollDown", STR.listDown, new vec3(9.4, 0, 0), 6, 3, () => this.scrollTasks(1))
-    this.moreRoot.enabled = false
+    this.reminderLabel = this.addText(this.controlsRoot, STR.bellOn(5), new vec3(7.35, -17.8, 0.4), 13, 4.6, 1.2)
     // El coach habla desde el globito de la nube (arriba a la derecha).
     this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.6, 20.3, 0.9), 13, 5.6, 3.4)
     this.checkInRoot = this.obj(this.detailRoot, "CheckIn", new vec3(0, -14.2, 3))
@@ -273,8 +266,16 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.checkInRoot.enabled = false
   }
 
-  private toggleMore(): void {
-    if (this.moreRoot) this.moreRoot.enabled = !this.moreRoot.enabled
+  // "more" = ver más tareas: baja por la lista y al llegar al final vuelve al inicio.
+  private showMoreTasks(): void {
+    const count = this.cards[this.selectedCard]?.tasks.length ?? 0
+    if (count <= 4) return
+    if (this.scrollOffset >= count - 4) {
+      this.scrollOffset = -1
+      this.scrollTasks(1)
+    } else {
+      this.scrollTasks(1)
+    }
   }
 
   // ——— Focus Mode: espacio visual limpio — solo la tarea y el reloj ———
@@ -296,7 +297,6 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     if (active) {
       this.closeNotePaper()
       this.hideCheckIn()
-      if (this.moreRoot) this.moreRoot.enabled = false
       if (this.focusNudge) this.focusNudge.text = ""
       for (const root of this.cardRoots) root.enabled = false
     } else {
