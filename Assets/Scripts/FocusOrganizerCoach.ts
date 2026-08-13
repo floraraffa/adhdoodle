@@ -1,6 +1,6 @@
 import {OpenAI} from "RemoteServiceGateway.lspkg/HostedExternal/OpenAI"
 import {Gemini} from "RemoteServiceGateway.lspkg/HostedExternal/Gemini"
-import {FocusTaskState} from "./FocusOrganizerState"
+import {FocusTaskState, stripStepTimes} from "./FocusOrganizerState"
 
 export interface TaskEstimate {
   minutes: number
@@ -16,7 +16,8 @@ export class FocusOrganizerCoach {
     const prompt =
       `Tarea: "${task.title}" (área: ${category}). Notas de la persona: "${note}". ` +
       `Estimá cuántos minutos reales le llevará a una persona con TDAH (sumá un margen amable, sin apurar) ` +
-      `y dividila en 2 a 4 micro-pasos concretos; el primero debe tomar menos de 5 minutos para vencer el arranque. ` +
+      `y dividila en 2 a 4 micro-pasos concretos; el primero debe ser muy chico, para vencer el arranque. ` +
+      `IMPORTANTE: un solo tiempo total en "minutes"; los pasos NO llevan minutos ni números de tiempo. ` +
       `Respondé SOLO un JSON válido, sin texto extra: {"minutes": numero, "steps": ["paso", "..."], "message": "aliento corto"}`
     // Sin token de RSG la request puede colgarse en vez de rechazar → carrera con timeout.
     const remote = this.askOpenAI(prompt).catch(() => null)
@@ -47,7 +48,10 @@ export class FocusOrganizerCoach {
     const clean = raw.replace(/```json/gi, "").replace(/```/g, "").trim()
     const parsed = JSON.parse(clean) as {minutes?: unknown; steps?: unknown; message?: unknown}
     const minutes = typeof parsed.minutes === "number" && isFinite(parsed.minutes) ? Math.max(5, Math.min(90, Math.round(parsed.minutes))) : 15
-    const steps = Array.isArray(parsed.steps) ? parsed.steps.filter((step) => typeof step === "string").slice(0, 4) : []
+    // Un solo tiempo total: si el modelo igual mete minutos en los pasos, se limpian.
+    const steps = (Array.isArray(parsed.steps) ? parsed.steps.filter((step) => typeof step === "string").slice(0, 4) : [])
+      .map((step) => stripStepTimes(step))
+      .filter((step) => step.length > 0)
     const message = typeof parsed.message === "string" && parsed.message.length > 0 ? parsed.message : "Estimación lista. Ajustala si no te cierra."
     if (steps.length === 0) throw new Error("estimate sin pasos")
     return {minutes, steps, message}
@@ -59,7 +63,7 @@ export class FocusOrganizerCoach {
     const minutes = Math.max(10, Math.min(60, 10 + lines.length * 10))
     const steps = lines.length > 0
       ? lines.slice(0, 4)
-      : ["Prepará solo lo necesario (2 min)", "Hacé la primera parte pequeña", "Cerrá con una revisión corta"]
+      : ["Prepará solo lo necesario", "Hacé la primera parte pequeña", "Cerrá con una revisión corta"]
     return {minutes, steps, message: "Estimación local (sin conexión). Ajustala con − y +."}
   }
 

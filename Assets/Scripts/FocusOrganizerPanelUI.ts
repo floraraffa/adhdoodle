@@ -14,7 +14,7 @@ const COLORS = [
 ]
 
 const CONTROL_COLOR = new vec4(0.96, 0.97, 1.00, 1)
-const PAPER_COLOR = new vec4(1.00, 0.98, 0.90, 1)
+const POSTIT_COLOR = new vec4(1.00, 0.93, 0.55, 1)
 const SELECTED_ROW_COLOR = new vec4(0.84, 0.91, 1.00, 1)
 const RUNNING_ROW_COLOR = new vec4(1.00, 0.86, 0.58, 1)
 const TEXT_COLOR = new vec4(0.42, 0.31, 0.58, 1)
@@ -166,21 +166,21 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   // ——— Papelito de tarea: notas + estimación IA ———
 
   private createNotePaper(): void {
-    this.notePaper = this.obj(this.sceneObject, "NotePaper", new vec3(0, 0, 6))
+    // Post-it: chico, cuadrado, apenas inclinado como pegado a mano sobre la card.
+    this.notePaper = this.obj(this.sceneObject, "NotePaper", new vec3(10, 5, 6))
+    this.notePaper.getTransform().setLocalRotation(quat.angleAxis(-0.05, new vec3(0, 0, 1)))
     const plate = this.notePaper.createComponent(BackPlate.getTypeName()) as BackPlate
-    plate.size = new vec2(40, 44)
+    plate.size = new vec2(23, 24)
     plate.style = "simple"
-    this.tint(plate, PAPER_COLOR)
+    this.tint(plate, POSTIT_COLOR)
     this.makeDecorative(plate)
-    this.noteTitle = this.addText(this.notePaper, "", new vec3(-3, 18.3, 0.7), 40, 28, 3.2)
-    this.addSurfaceButton(this.notePaper, "EditTitle", "✏", new vec3(15, 18.3, 0.7), 4, 3.4, () => this.openKeyboard(this.noteTaskIndex))
-    this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(0, 7.5, 0.7), 35, 16, () => this.openNoteKeyboard())
-    this.noteSteps = this.addText(this.notePaper, "", new vec3(0, -6.2, 0.7), 26, 34, 9)
-    this.noteEstimate = this.addText(this.notePaper, "⏱ 15 min", new vec3(-12.5, -13.8, 0.7), 33, 9, 3.4)
-    this.addSurfaceButton(this.notePaper, "NoteMinus", "−5m", new vec3(-5.5, -13.8, 0.7), 4.6, 3.4, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: -5}))
-    this.addSurfaceButton(this.notePaper, "NotePlus", "+5m", new vec3(-0.5, -13.8, 0.7), 4.6, 3.4, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: 5}))
-    this.addSurfaceButton(this.notePaper, "NoteEstimate", "✨ estimar", new vec3(8, -13.8, 0.7), 9.5, 3.4, () => this.estimateEvent.invoke(this.noteTaskIndex))
-    this.addSurfaceButton(this.notePaper, "NoteClose", "✕ cerrar", new vec3(0, -18.6, 0.7), 8.5, 3, () => this.closeNotePaper())
+    this.noteTitle = this.addText(this.notePaper, "", new vec3(-1.5, 9.3, 0.7), 27, 16, 2.6)
+    this.addSurfaceButton(this.notePaper, "EditTitle", "✏", new vec3(8.5, 9.3, 0.7), 3, 2.8, () => this.openKeyboard(this.noteTaskIndex))
+    this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(0, 3.5, 0.7), 20, 7.5, () => this.openNoteKeyboard())
+    this.noteSteps = this.addText(this.notePaper, "", new vec3(0, -3.2, 0.7), 18, 20, 5.6)
+    this.noteEstimate = this.addText(this.notePaper, "⏱ 15 min", new vec3(-6.5, -8.2, 0.7), 24, 7, 2.8)
+    this.addSurfaceButton(this.notePaper, "NoteEstimate", "✨", new vec3(1, -8.2, 0.7), 3.6, 2.8, () => this.estimateEvent.invoke(this.noteTaskIndex))
+    this.addSurfaceButton(this.notePaper, "NoteClose", "✕", new vec3(7.5, -8.2, 0.7), 3.2, 2.8, () => this.closeNotePaper())
     this.notePaper.enabled = false
   }
 
@@ -204,10 +204,10 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private refreshNotePaper(): void {
     const task = this.cards[this.selectedCard]?.tasks[this.noteTaskIndex]
     if (!task) { this.closeNotePaper(); return }
-    if (this.noteTitle) this.noteTitle.text = this.short(task.title)
-    if (this.noteBody) this.noteBody.text = task.note.length > 0 ? task.note : "Tocá acá y anotá los pasos\ncomo en un papelito…"
-    if (this.noteSteps) this.noteSteps.text = task.aiSteps.length > 0 ? task.aiSteps.map((step, i) => `${i + 1}. ${step}`).join("\n") : ""
-    if (this.noteEstimate) this.noteEstimate.text = `⏱ ${task.durationMinutes} min`
+    if (this.noteTitle) this.noteTitle.text = task.title.length > 16 ? task.title.substring(0, 15) + "…" : task.title
+    if (this.noteBody) this.noteBody.text = task.note.length > 0 ? task.note : "Tocá y anotá\ntus pasos…"
+    if (this.noteSteps) this.noteSteps.text = task.aiSteps.map((step) => `· ${step}`).join("\n")
+    if (this.noteEstimate) this.noteEstimate.text = `⏱ ${task.durationMinutes}m`
   }
 
   private openNoteKeyboard(): void {
@@ -365,11 +365,15 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   }
   private short(value: string): string { return value.length > 22 ? value.substring(0, 20) + "…" : value }
   private visibleIndex(row: number): number { return this.scrollOffset + row }
+  // Las tareas se ven desde el carrusel: lista tipo checklist en las cards vecinas.
   private previewTasks(card: FocusCardState): string {
     if (card.tasks.length === 0) return "+ Agregar primera tarea"
-    const lines = card.tasks.slice(0, 5).map((task, index) => `${index + 1}. ${this.short(task.title)}${task.status === "running" ? "  ▶" : task.status === "done" ? "  ✓" : ""}`)
-    if (card.tasks.length > 5) lines.push(`+ ${card.tasks.length - 5} más`)
-    return lines.join("\n\n")
+    const lines = card.tasks.slice(0, 6).map((task) => {
+      const mark = task.status === "done" ? "✓" : task.status === "running" ? "▶" : task.status === "skipped" ? "↷" : "○"
+      return `${mark}  ${this.short(task.title)}`
+    })
+    if (card.tasks.length > 6) lines.push(`+ ${card.tasks.length - 6} más`)
+    return lines.join("\n")
   }
   private obj(parent: SceneObject, name: string, position: vec3): SceneObject {
     const object = global.scene.createSceneObject(name); object.setParent(parent); object.getTransform().setLocalPosition(position); return object

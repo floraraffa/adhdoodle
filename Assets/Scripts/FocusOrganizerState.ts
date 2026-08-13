@@ -1,5 +1,14 @@
 export type TaskStatus = "idle" | "running" | "paused" | "done" | "skipped"
 
+// Un solo tiempo total: los pasos no llevan minutos ("(aprox. 2 minutos)", "5 min", etc.)
+export function stripStepTimes(step: string): string {
+  return step
+    .replace(/\(?\s*(aprox\.?\s*)?\d+\s*(min(utos)?|m)\b\.?\s*\)?/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;])/g, "$1")
+    .trim()
+}
+
 export interface FocusTaskState {
   title: string
   durationMinutes: number
@@ -186,7 +195,7 @@ export class FocusOrganizerState {
           focusElapsedSeconds: this.clampNumber(task.focusElapsedSeconds, 0, 24 * 3600, 0),
           note: typeof task.note === "string" ? task.note.substring(0, 800) : "",
           aiSteps: Array.isArray(task.aiSteps)
-            ? task.aiSteps.filter((step) => typeof step === "string").slice(0, 6).map((step) => step.substring(0, 120))
+            ? task.aiSteps.filter((step) => typeof step === "string").slice(0, 6).map((step) => stripStepTimes(step.substring(0, 120)))
             : [],
         }))
       this.refreshPriorities(this.cards[index].tasks)
