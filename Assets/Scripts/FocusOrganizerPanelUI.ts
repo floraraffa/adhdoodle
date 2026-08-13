@@ -180,9 +180,10 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(0, 3.5, 0.7), 20, 7.5, () => this.openNoteKeyboard())
     this.noteSteps = this.addText(this.notePaper, "", new vec3(0, -3.2, 0.7), 18, 20, 5.6)
     // Tiempo editable a la vista (− ⏱ +) y el botón de IA con la palabra completa.
-    this.addSurfaceButton(this.notePaper, "NoteMinus", "−", new vec3(-8.7, -8.2, 0.7), 2.6, 2.8, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: -5}))
+    // Ajuste fino de a 1 minuto en el post-it; el ajuste grueso de ±5 vive en la card.
+    this.addSurfaceButton(this.notePaper, "NoteMinus", "−", new vec3(-8.7, -8.2, 0.7), 2.6, 2.8, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: -1}))
     this.noteEstimate = this.addText(this.notePaper, "⏱ 15m", new vec3(-4.6, -8.2, 0.7), 24, 5.2, 2.8)
-    this.addSurfaceButton(this.notePaper, "NotePlus", "+", new vec3(-0.5, -8.2, 0.7), 2.6, 2.8, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: 5}))
+    this.addSurfaceButton(this.notePaper, "NotePlus", "+", new vec3(-0.5, -8.2, 0.7), 2.6, 2.8, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: 1}))
     this.addSurfaceButton(this.notePaper, "NoteEstimate", "✨ estimar", new vec3(5.9, -8.2, 0.7), 8.6, 2.8, () => this.estimateEvent.invoke(this.noteTaskIndex))
     this.notePaper.enabled = false
   }
