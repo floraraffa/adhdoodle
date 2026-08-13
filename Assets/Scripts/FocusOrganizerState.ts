@@ -18,6 +18,7 @@ export interface FocusTaskState {
   focusElapsedSeconds: number
   note: string
   aiSteps: string[]
+  drifts: number
 }
 
 export interface FocusCardState {
@@ -121,6 +122,13 @@ export class FocusOrganizerState {
     task.aiSteps = steps.slice(0, 6).map((step) => step.substring(0, 120))
   }
 
+  registerDrift(cardIndex: number, taskIndex: number): number {
+    const task = this.cards[cardIndex]?.tasks[taskIndex]
+    if (!task) return 0
+    task.drifts++
+    return task.drifts
+  }
+
   toggleTask(index: number): boolean {
     const task = this.activeCard.tasks[index]
     if (!task) return false
@@ -197,6 +205,7 @@ export class FocusOrganizerState {
           aiSteps: Array.isArray(task.aiSteps)
             ? task.aiSteps.filter((step) => typeof step === "string").slice(0, 6).map((step) => stripStepTimes(step.substring(0, 120)))
             : [],
+          drifts: this.clampNumber(task.drifts, 0, 999, 0),
         }))
       this.refreshPriorities(this.cards[index].tasks)
     }
@@ -235,7 +244,7 @@ export class FocusOrganizerState {
   }
 
   private task(title: string, priority: number = 1): FocusTaskState {
-    return {title, durationMinutes: 15, remainingSeconds: 900, priority, status: "idle", focusElapsedSeconds: 0, note: "", aiSteps: []}
+    return {title, durationMinutes: 15, remainingSeconds: 900, priority, status: "idle", focusElapsedSeconds: 0, note: "", aiSteps: [], drifts: 0}
   }
 
   private refreshPriorities(tasks: FocusTaskState[]): void {

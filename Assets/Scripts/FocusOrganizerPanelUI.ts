@@ -39,6 +39,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private readonly timeEvent = new Event<{taskIndex: number; delta: number}>()
   private readonly noteEvent = new Event<TaskTextEdit>()
   private readonly estimateEvent = new Event<number>()
+  private readonly checkInEvent = new Event<boolean>()
 
   private cardRoots: SceneObject[] = []
   private cardSummaries: Text[] = []
@@ -63,6 +64,14 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private noteBody: Text | null = null
   private noteSteps: Text | null = null
   private noteEstimate: Text | null = null
+  private rowRoots: SceneObject[] = []
+  private controlsRoot: SceneObject | null = null
+  private checkInRoot: SceneObject | null = null
+  private tunnelIndex: number | null = null
+  private chipRoot: SceneObject | null = null
+  private chipTitle: Text | null = null
+  private chipInfo: Text | null = null
+  private chipSnapped = false
 
   get onTaskEdited(): PublicApi<TaskTextEdit> { return this.editEvent.publicApi() }
   get onMovePriority(): PublicApi<{taskIndex: number; direction: number}> { return this.movePriorityEvent.publicApi() }
@@ -73,6 +82,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   get onTimeDelta(): PublicApi<{taskIndex: number; delta: number}> { return this.timeEvent.publicApi() }
   get onNoteEdited(): PublicApi<TaskTextEdit> { return this.noteEvent.publicApi() }
   get onEstimateRequested(): PublicApi<number> { return this.estimateEvent.publicApi() }
+  /** true = "me distraje", false = "sigo" */
+  get onCheckIn(): PublicApi<boolean> { return this.checkInEvent.publicApi() }
 
   onAwake(): void {
     const authored = this.sceneObject.getTransform().getLocalPosition()
@@ -82,6 +93,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     for (let index = 0; index < 6; index++) this.createCard(index)
     this.createDetails()
     this.createNotePaper()
+    this.createFocusChip()
     this.updateCarouselTargets()
     this.createEvent("OnStartEvent").bind(() => this.centerHorizontallyInView())
     this.createEvent("UpdateEvent").bind(() => this.animateCarousel())
@@ -122,6 +134,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.scrollOffset = Math.max(0, Math.min(Math.max(0, count - 4), this.scrollOffset + direction))
     const tasks = this.cards[this.selectedCard]?.tasks ?? []
     for (let row = 0; row < 4; row++) this.renderTask(row, tasks[this.scrollOffset + row])
+    this.applyTunnel()
   }
 
   private createCard(index: number): void {
@@ -144,23 +157,102 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private createDetails(): void {
     this.detailRoot = this.obj(this.cardRoots[0], "ActiveCardTasks", vec3.zero())
     for (let row = 0; row < 4; row++) {
-      const y = ROW_Y[row]
-      this.taskLabels[row] = this.addSurfaceButton(this.detailRoot, `Task-${row}`, "+ Agregar tarea", new vec3(-9, y, 1), 20, 4.8, () => this.onRowPressed(this.visibleIndex(row)), (plate) => { this.taskPlates[row] = plate })
-      this.priorityLabels[row] = this.addSurfaceButton(this.detailRoot, `Priority-${row}`, "P2", new vec3(3.2, y, 1), 3.8, 4.2, () => { this.selectedTask = this.visibleIndex(row) })
-      this.playLabels[row] = this.addSurfaceButton(this.detailRoot, `Play-${row}`, "▶", new vec3(7.3, y, 1), 3.8, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.playEvent.invoke(i) })
-      this.addSurfaceButton(this.detailRoot, `Skip-${row}`, "Pasar", new vec3(12.3, y, 1), 5.8, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.skipEvent.invoke(i) })
-      this.addSurfaceButton(this.detailRoot, `Done-${row}`, "✓", new vec3(17.5, y, 1), 4.2, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.doneEvent.invoke(i) })
+      const rowRoot = this.obj(this.detailRoot, `Row-${row}`, new vec3(0, ROW_Y[row], 1))
+      this.rowRoots.push(rowRoot)
+      this.taskLabels[row] = this.addSurfaceButton(rowRoot, `Task-${row}`, "+ Agregar tarea", new vec3(-9, 0, 0), 20, 4.8, () => this.onRowPressed(this.visibleIndex(row)), (plate) => { this.taskPlates[row] = plate })
+      this.priorityLabels[row] = this.addSurfaceButton(rowRoot, `Priority-${row}`, "P2", new vec3(3.2, 0, 0), 3.8, 4.2, () => { this.selectedTask = this.visibleIndex(row) })
+      this.playLabels[row] = this.addSurfaceButton(rowRoot, `Play-${row}`, "▶", new vec3(7.3, 0, 0), 3.8, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.playEvent.invoke(i) })
+      this.addSurfaceButton(rowRoot, `Skip-${row}`, "Pasar", new vec3(12.3, 0, 0), 5.8, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.skipEvent.invoke(i) })
+      this.addSurfaceButton(rowRoot, `Done-${row}`, "✓", new vec3(17.5, 0, 0), 4.2, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.doneEvent.invoke(i) })
     }
-    this.addSurfaceButton(this.detailRoot, "NewTask", "+ tarea", new vec3(-17, -15, 1), 7.5, 3.5, () => this.openFirstEmpty())
-    this.addSurfaceButton(this.detailRoot, "PriorityUp", "↑ prioridad", new vec3(-9, -15, 1), 7.2, 3.5, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: -1}))
-    this.addSurfaceButton(this.detailRoot, "PriorityDown", "↓ prioridad", new vec3(-1.2, -15, 1), 7.2, 3.5, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: 1}))
-    this.addSurfaceButton(this.detailRoot, "MinusTime", "−5m", new vec3(5.2, -15, 1), 5, 3.5, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: -5}))
-    this.addSurfaceButton(this.detailRoot, "PlusTime", "+5m", new vec3(10.7, -15, 1), 5, 3.5, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: 5}))
-    this.reminderLabel = this.addSurfaceButton(this.detailRoot, "Reminder", "🔔 5m", new vec3(17.3, -15, 1), 7, 3.5, () => this.reminderEvent.invoke())
-    this.addSurfaceButton(this.detailRoot, "ScrollUp", "↑ lista", new vec3(-8, -18.5, 1), 6.5, 2.6, () => this.scrollTasks(-1))
-    this.addText(this.detailRoot, "índice ↔ cards", new vec3(0, -18.5, 1), 26, 8.5, 1.5)
-    this.addSurfaceButton(this.detailRoot, "ScrollDown", "↓ lista", new vec3(8, -18.5, 1), 6.5, 2.6, () => this.scrollTasks(1))
+    this.controlsRoot = this.obj(this.detailRoot, "Controls", new vec3(0, 0, 1))
+    this.addSurfaceButton(this.controlsRoot, "NewTask", "+ tarea", new vec3(-17, -15, 0), 7.5, 3.5, () => this.openFirstEmpty())
+    this.addSurfaceButton(this.controlsRoot, "PriorityUp", "↑ prioridad", new vec3(-9, -15, 0), 7.2, 3.5, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: -1}))
+    this.addSurfaceButton(this.controlsRoot, "PriorityDown", "↓ prioridad", new vec3(-1.2, -15, 0), 7.2, 3.5, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: 1}))
+    this.addSurfaceButton(this.controlsRoot, "MinusTime", "−5m", new vec3(5.2, -15, 0), 5, 3.5, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: -5}))
+    this.addSurfaceButton(this.controlsRoot, "PlusTime", "+5m", new vec3(10.7, -15, 0), 5, 3.5, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: 5}))
+    this.reminderLabel = this.addSurfaceButton(this.controlsRoot, "Reminder", "🔔 5m", new vec3(17.3, -15, 0), 7, 3.5, () => this.reminderEvent.invoke())
+    this.addSurfaceButton(this.controlsRoot, "ScrollUp", "↑ lista", new vec3(-8, -18.5, 0), 6.5, 2.6, () => this.scrollTasks(-1))
+    this.addText(this.controlsRoot, "índice ↔ cards", new vec3(0, -18.5, 0), 26, 8.5, 1.5)
+    this.addSurfaceButton(this.controlsRoot, "ScrollDown", "↓ lista", new vec3(8, -18.5, 0), 6.5, 2.6, () => this.scrollTasks(1))
     this.coachText = this.addText(this.detailRoot, "Elegí una tarea y presioná ▶", new vec3(0, -20.7, 1), 29, 38, 2)
+    this.checkInRoot = this.obj(this.detailRoot, "CheckIn", new vec3(0, -12, 3))
+    this.addSurfaceButton(this.checkInRoot, "CheckFocused", "Sigo ✓", new vec3(-5.6, 0, 0), 8, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(false) })
+    this.addSurfaceButton(this.checkInRoot, "CheckDrifted", "Me distraje ↩", new vec3(5.6, 0, 0), 10.5, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(true) })
+    this.checkInRoot.enabled = false
+  }
+
+  // ——— Chip de foco: memoria externa en la periferia ———
+
+  private createFocusChip(): void {
+    // Hijo del panel para heredar el contexto de render que ya funciona;
+    // su posición se pisa cada frame en coordenadas de mundo para seguir a la cámara.
+    this.chipRoot = this.obj(this.sceneObject, "FocusChip", vec3.zero())
+    const plate = this.chipRoot.createComponent(BackPlate.getTypeName()) as BackPlate
+    plate.size = new vec2(7, 3)
+    plate.style = "simple"
+    this.tint(plate, POSTIT_COLOR)
+    this.makeDecorative(plate)
+    this.chipTitle = this.addText(this.chipRoot, "", new vec3(0, 0.7, 0.5), 9, 6.6, 1.3)
+    this.chipInfo = this.addText(this.chipRoot, "", new vec3(0, -0.6, 0.5), 7, 6.6, 1.3)
+    this.chipRoot.enabled = false
+  }
+
+  updateFocusChip(data: {title: string; remainingSeconds: number; step: string | null} | null): void {
+    if (!this.chipRoot) return
+    if (!data) {
+      this.chipRoot.enabled = false
+      this.chipSnapped = false
+      return
+    }
+    this.chipRoot.enabled = true
+    if (this.chipTitle) this.chipTitle.text = data.title.length > 20 ? data.title.substring(0, 19) + "…" : data.title
+    const minutes = Math.floor(data.remainingSeconds / 60)
+    const seconds = Math.floor(data.remainingSeconds % 60)
+    const clock = `⏱ ${minutes}:${seconds < 10 ? "0" : ""}${seconds}`
+    if (this.chipInfo) this.chipInfo.text = data.step ? `${clock} · ${data.step.length > 24 ? data.step.substring(0, 23) + "…" : data.step}` : clock
+    this.followCamera()
+  }
+
+  private followCamera(): void {
+    if (!this.chipRoot?.enabled) return
+    const camTransform = WorldCameraFinderProvider.getInstance().getTransform()
+    // OJO: transform.forward apunta al +Z local (la ESPALDA de la vista) — se niega.
+    const target = camTransform.getWorldPosition()
+      .add(camTransform.forward.uniformScale(-40))
+      .add(camTransform.right.uniformScale(8))
+      .add(camTransform.up.uniformScale(-6))
+    const transform = this.chipRoot.getTransform()
+    if (!this.chipSnapped) {
+      this.chipSnapped = true
+      transform.setWorldPosition(target)
+    } else {
+      const current = transform.getWorldPosition()
+      transform.setWorldPosition(current.add(target.sub(current).uniformScale(Math.min(1, getDeltaTime() * 4))))
+    }
+    // Misma orientación que el panel (que ya sabemos que se lee bien).
+    transform.setWorldRotation(this.sceneObject.getTransform().getWorldRotation())
+  }
+
+  // ——— Check-in de deriva ———
+
+  showCheckIn(): void { if (this.checkInRoot) this.checkInRoot.enabled = true }
+  hideCheckIn(): void { if (this.checkInRoot) this.checkInRoot.enabled = false }
+
+  // ——— Modo túnel: una tarea corriendo = menos ruido visual ———
+
+  setTunnel(runningTaskIndex: number | null): void {
+    const changed = this.tunnelIndex !== runningTaskIndex
+    this.tunnelIndex = runningTaskIndex
+    this.applyTunnel()
+    if (changed) this.updateCarouselTargets()
+  }
+
+  private applyTunnel(): void {
+    if (this.controlsRoot) this.controlsRoot.enabled = this.tunnelIndex === null
+    for (let row = 0; row < this.rowRoots.length; row++) {
+      this.rowRoots[row].enabled = this.tunnelIndex === null || this.visibleIndex(row) === this.tunnelIndex
+    }
   }
 
   // ——— Papelito de tarea: notas + estimación IA ———
@@ -257,13 +349,15 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     const count = this.cardRoots.length
     // El arrastre corre todo el carrusel de forma continua; al soltar, el snap
     // cambia selectedCard y las cards ya están casi en su lugar (sin salto).
+    // En modo túnel solo queda la card activa: menos invitaciones a distraerse.
+    const maxNeighbors = this.tunnelIndex !== null ? 0 : 2
     const shiftX = this.dragShift * 34
     const centerBlend = Math.min(1, Math.abs(this.dragShift))
     for (let index = 0; index < count; index++) {
       let diff = (index - this.selectedCard + count) % count
       if (diff > count / 2) diff -= count
       const abs = Math.abs(diff)
-      this.cardRoots[index].enabled = abs <= 2
+      this.cardRoots[index].enabled = abs <= maxNeighbors
       if (abs === 0) {
         this.targets[index] = new vec3(shiftX, 1.5 * centerBlend, -13 * centerBlend)
         const scale = 1 - 0.24 * centerBlend
@@ -284,6 +378,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   }
 
   private animateCarousel(): void {
+    this.followCamera()
     const amount = Math.min(1, getDeltaTime() * 9)
     for (let index = 0; index < this.cardRoots.length; index++) {
       if (!this.cardRoots[index].enabled) continue

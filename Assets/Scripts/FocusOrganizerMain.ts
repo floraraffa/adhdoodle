@@ -53,11 +53,12 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     this.swipe.onDragProgress.add((progress) => this.panel.setCarouselDrag(progress))
     this.panel.onNoteEdited.add(({taskIndex, text}) => { this.state.setNote(taskIndex, text); this.render(); this.saveState() })
     this.panel.onEstimateRequested.add((taskIndex) => this.estimateWithAI(taskIndex))
+    this.panel.onCheckIn.add((drifted) => this.handleCheckIn(drifted))
     this.panel.onTaskEdited.add(({taskIndex, text}) => { this.state.selectTask(taskIndex); this.state.upsertTask(taskIndex, text); this.render(); this.saveState() })
     this.panel.onMovePriority.add(({taskIndex, direction}) => { this.state.moveTask(taskIndex, direction); this.play(this.tapAudio); this.render(); this.saveState() })
     this.panel.onReminderCycle.add(() => this.cycleReminder())
     this.panel.onTimeDelta.add(({taskIndex, delta}) => { this.state.selectTask(taskIndex); this.state.adjustMinutes(delta); this.render(); this.saveState() })
-    this.panel.onPlay.add((index) => { const running = this.state.toggleTask(index); this.syncReminderTracking(); this.play(this.tapAudio); this.panel.setCoach(running ? "Una tarea. Un bloque. Podés pausar." : "Pausa sin culpa."); this.render(); this.saveState() })
+    this.panel.onPlay.add((index) => { const running = this.state.toggleTask(index); this.syncReminderTracking(); this.panel.hideCheckIn(); this.play(this.tapAudio); this.panel.setCoach(running ? "Una tarea. Un bloque. Podés pausar." : "Pausa sin culpa."); this.render(); this.saveState() })
     this.panel.onSkip.add((index) => this.skip(index))
     this.panel.onDone.add((index) => this.complete(index))
     this.reminderMinutes = this.reminderMinutes === 10 ? 10 : this.reminderMinutes === 0 ? 0 : 5
@@ -72,6 +73,11 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     const second = Math.ceil(running?.task.remainingSeconds ?? this.state.activeTask?.remainingSeconds ?? 0)
     if (second !== this.lastSecond) this.render()
     this.checkReminder(running)
+    this.panel.updateFocusChip(running ? {
+      title: running.task.title,
+      remainingSeconds: running.task.remainingSeconds,
+      step: running.task.aiSteps[0] ?? null,
+    } : null)
     if (running) {
       this.sinceLastSave += getDeltaTime()
       if (this.sinceLastSave >= RUNNING_SAVE_INTERVAL) this.saveState()
@@ -86,6 +92,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
   private skip(index: number): void {
     const category = this.state.activeCard.category
     const task = this.state.skipTask(index)
+    this.panel.hideCheckIn()
     this.play(this.tapAudio); this.render(); this.saveState(); this.panel.setCoach("Pasada. Elegí la siguiente sin culpa.")
     if (task) this.coach.guideSkip(category, task).then((message) => this.panel.setCoach(message))
   }
@@ -93,6 +100,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
   private complete(index: number): void {
     const category = this.state.activeCard.category
     const task = this.state.completeTask(index)
+    this.panel.hideCheckIn()
     this.play(this.doneAudio); this.render(); this.saveState(); this.panel.setCoach("Hecho. Ya cuenta.")
     if (task) this.coach.celebrate(category, task).then((message) => this.panel.setCoach(message))
   }
@@ -140,8 +148,9 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     this.reminderBucket = bucket
     this.play(this.reminderAudio)
     const elapsed = Math.round(running.task.focusElapsedSeconds / 60)
-    this.panel.setCoach(`Seguís con: ${running.task.title}. Van ${elapsed} minutos.`)
-    print(`[FocusReminder] ${running.task.title} · ${elapsed} min`)
+    this.panel.setCoach(`¿Seguís con ${running.task.title}?`)
+    this.panel.showCheckIn()
+    print(`[FocusReminder] check-in a los ${elapsed} min de "${running.task.title}"`)
   }
 
   private saveState(): void {
@@ -150,8 +159,28 @@ export class FocusOrganizerMain extends BaseScriptComponent {
   }
 
   private render(): void {
-    this.lastSecond = Math.ceil(this.state.runningContext?.task.remainingSeconds ?? this.state.activeTask?.remainingSeconds ?? 0)
+    const running = this.state.runningContext
+    this.lastSecond = Math.ceil(running?.task.remainingSeconds ?? this.state.activeTask?.remainingSeconds ?? 0)
     this.panel.render(this.state.allCards, this.state.activeCardIndex, this.state.activeTaskIndex)
+    // Túnel solo si la tarea corriendo está en la card que se mira.
+    this.panel.setTunnel(running && running.cardIndex === this.state.activeCardIndex ? running.taskIndex : null)
+  }
+
+  private handleCheckIn(drifted: boolean): void {
+    const running = this.state.runningContext
+    if (!drifted) {
+      this.panel.setCoach("Seguís ahí. Buen bloque.")
+      return
+    }
+    if (running) {
+      const drifts = this.state.registerDrift(running.cardIndex, running.taskIndex)
+      const step = running.task.aiSteps[0]
+      this.panel.setCoach(step ? `Sin culpa. Volvé con algo chico: ${step}` : "Sin culpa. Volvé con el paso más chico que puedas.")
+      this.saveState()
+      print(`[FocusCheckIn] deriva registrada (${drifts}) en "${running.task.title}"`)
+    } else {
+      this.panel.setCoach("Sin culpa. Elegí algo chico para arrancar.")
+    }
   }
 
   private createSfx(name: string, track: AudioTrackAsset): AudioComponent {

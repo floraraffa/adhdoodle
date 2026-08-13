@@ -30,3 +30,12 @@ Two UX upgrades requested by Flor, implemented by Claude through the Lens Studio
 - **Resilience decision:** the RSG call races an 8-second `DelayedCallbackEvent` timeout and falls back to a local heuristic (minutes from note length, steps from note lines) so the flow works with no network and never hangs. JSON from the model is sanitized (clamped minutes, capped steps).
 - **Verified in preview:** drag-snap logged `snap por arrastre continuo`; paper opened with placeholder, estimate button visible; end-to-end estimate validated via a temporary debug call — remote OpenAI responded in ~1.4s: `estimación: 10 min, 4 pasos` (debug line removed afterwards). Persistence restore confirmed again after recompile.
 - **Tooling note:** injected preview gestures trigger SIK interactables only ~50% of the time (needs press-hold-release); real finger taps are unaffected. Preview persistent storage sometimes clears on script recompile; on-device storage is unaffected.
+
+## Day 1, session 3 — Aug 13, 2026 (the anti-distraction trio)
+
+Three features designed around the ADHD reality that distraction is fought with environment design, not willpower:
+
+- **Focus chip** — while a task runs, a small yellow chip follows the camera in the lower-right periphery: task name, countdown, and the first AI micro-step as the always-visible re-entry point. Answers "what was I doing?" without opening the panel. Implementation: child of the panel (inherits the working render context), world-position overridden every frame with a lazy-follow lerp toward camera-relative offsets.
+- **Tunnel mode** — when a task is running on the card you're looking at, neighbor cards, non-running rows and the whole control strip disappear; only the running task, its controls and the coach remain. One thing looking at you instead of six.
+- **Drift check-in** — the periodic reminder now asks "¿Seguís con [tarea]?" with two buttons: "Sigo ✓" (encouragement) and "Me distraje ↩" (no guilt: re-offers the smallest micro-step, silently counts drifts per task — data for future insights).
+- **Debugging saga worth recording:** the chip was invisible through five hypotheses (occlusion by distance, camera parenting, canvas layering, back-face culling). The real culprit, found by logging camera pose vs chip position: **Lens Studio's `transform.forward` points to local +Z — the BACK of the view**. The chip had been placed 24 cm behind the user's head the whole time. One sign flip fixed it. Verified visually at multiple camera distances afterwards.
