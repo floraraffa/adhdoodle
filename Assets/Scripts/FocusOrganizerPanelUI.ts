@@ -41,6 +41,9 @@ const TEX_ICONS = {
 const TEX_CLOUD = requireAsset("../DesignAssets/cloud.png") as Texture
 // Los Image creados en runtime no traen material: se clona el del UIKit.
 const IMAGE_MATERIAL = requireAsset("../../Packages/SpectaclesUIKit.lspkg/Materials/Image.mat") as Material
+// Tipografía handscript del diseño (Cheese Milky) — grande, como en la referencia.
+const FONT_HAND = requireAsset("../Fonts/CheeseMilky.otf") as Font
+const FONT_SCALE = 1.5
 
 // Página 800×1024 px → 39×50 cm (factor 0.0488 cm/px)
 const PAGE_W = 39
@@ -223,8 +226,10 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
       const strip = this.addImage(rowRoot, "Strip", TEX_WASHI[row % TEX_WASHI.length], new vec3(0, 0, 0), ROW_W, ROW_H)
       this.rowImages[row] = strip.image
       this.makeInteractive(strip.object, ROW_W, ROW_H, () => this.onRowPressed(this.visibleIndex(row)))
-      // Texto: título + reloj (el checkbox viene horneado en la tira).
-      this.taskLabels[row] = this.addText(rowRoot, "", new vec3(-0.6, 0, 0.5), 22, 14.5, 4.6)
+      // Texto: título + reloj (el checkbox viene horneado en la tira), alineado
+      // a la izquierda como en la referencia.
+      this.taskLabels[row] = this.addText(rowRoot, "", new vec3(-0.9, 0.2, 0.5), 27, 15.6, 4.8)
+      this.taskLabels[row].horizontalAlignment = HorizontalAlignment.Left
       // Badge de prioridad (imagen DO FIRST / NEXT / LATER).
       const badge = this.addImage(rowRoot, "Badge", TEX_BADGES[2], new vec3(6.2, -1.5, 0.5), 5.6, 1.85)
       this.badgeImages[row] = badge.image
@@ -468,7 +473,11 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     const selected = actualIndex === this.selectedTask ? "● " : ""
     this.taskLabels[row].text = `${selected}${this.short(task.title)}\n⏱ ${clock}${status}`
     if (this.badgeObjects[row]) this.badgeObjects[row].enabled = task.status !== "done"
-    if (this.badgeImages[row]) this.badgeImages[row].mainPass.baseTex = TEX_BADGES[Math.min(task.priority - 1, TEX_BADGES.length - 1)]
+    if (this.badgeImages[row] && this.badgeObjects[row]) {
+      const badgeTex = TEX_BADGES[Math.min(task.priority - 1, TEX_BADGES.length - 1)]
+      this.badgeImages[row].mainPass.baseTex = badgeTex
+      this.badgeObjects[row].getTransform().setLocalScale(new vec3(5.6, 5.6 * this.aspectOf(badgeTex), 1))
+    }
     if (this.rowImages[row]) this.rowImages[row].mainPass.baseColor = task.status === "running" ? RUNNING_TINT : NORMAL_TINT
     if (this.playImages[row]) this.playImages[row].mainPass.baseColor = task.status === "running" ? new vec4(0.75, 0.75, 0.75, 1) : NORMAL_TINT
     this.applyTunnel()
@@ -562,13 +571,19 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
 
   // ——— Helpers visuales ———
 
-  private addImage(parent: SceneObject, name: string, texture: Texture, position: vec3, width: number, height: number): {object: SceneObject; image: Image} {
+  private addImage(parent: SceneObject, name: string, texture: Texture, position: vec3, width: number, _height?: number): {object: SceneObject; image: Image} {
     const object = this.obj(parent, name, position)
-    object.getTransform().setLocalScale(new vec3(width, height, 1))
+    // La altura sale SIEMPRE de la proporción real del PNG: nada se deforma.
+    object.getTransform().setLocalScale(new vec3(width, width * this.aspectOf(texture), 1))
     const image = object.createComponent("Component.Image") as Image
     image.mainMaterial = IMAGE_MATERIAL.clone() as Material
     image.mainPass.baseTex = texture
     return {object, image}
+  }
+
+  private aspectOf(texture: Texture): number {
+    const w = texture.getWidth()
+    return w > 0 ? texture.getHeight() / w : 1
   }
 
   /** Zona interactiva invisible (para elementos horneados en las imágenes). */
@@ -603,7 +618,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private addText(parent: SceneObject, value: string, position: vec3, size: number, width: number, height: number): Text {
     const object = this.obj(parent, "Text", position)
     const text = object.createComponent("Component.Text") as Text
-    text.text = value; text.size = size; text.depthTest = true
+    text.text = value; text.size = Math.round(size * FONT_SCALE); text.depthTest = true
+    text.font = FONT_HAND
     text.textFill.color = TEXT_COLOR
     text.horizontalAlignment = HorizontalAlignment.Center; text.verticalAlignment = VerticalAlignment.Center
     text.horizontalOverflow = HorizontalOverflow.Shrink; text.verticalOverflow = VerticalOverflow.Shrink
