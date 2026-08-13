@@ -174,13 +174,16 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     plate.style = "simple"
     this.tint(plate, POSTIT_COLOR)
     this.makeDecorative(plate)
-    this.noteTitle = this.addText(this.notePaper, "", new vec3(-1.5, 9.3, 0.7), 27, 16, 2.6)
-    this.addSurfaceButton(this.notePaper, "EditTitle", "✏", new vec3(8.5, 9.3, 0.7), 3, 2.8, () => this.openKeyboard(this.noteTaskIndex))
+    this.noteTitle = this.addText(this.notePaper, "", new vec3(-2.5, 9.3, 0.7), 27, 13.5, 2.6)
+    this.addSurfaceButton(this.notePaper, "EditTitle", "✏", new vec3(5.6, 9.3, 0.7), 2.8, 2.6, () => this.openKeyboard(this.noteTaskIndex))
+    this.addSurfaceButton(this.notePaper, "NoteClose", "✕", new vec3(9.2, 9.3, 0.7), 2.8, 2.6, () => this.closeNotePaper())
     this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(0, 3.5, 0.7), 20, 7.5, () => this.openNoteKeyboard())
     this.noteSteps = this.addText(this.notePaper, "", new vec3(0, -3.2, 0.7), 18, 20, 5.6)
-    this.noteEstimate = this.addText(this.notePaper, "⏱ 15 min", new vec3(-6.5, -8.2, 0.7), 24, 7, 2.8)
-    this.addSurfaceButton(this.notePaper, "NoteEstimate", "✨", new vec3(1, -8.2, 0.7), 3.6, 2.8, () => this.estimateEvent.invoke(this.noteTaskIndex))
-    this.addSurfaceButton(this.notePaper, "NoteClose", "✕", new vec3(7.5, -8.2, 0.7), 3.2, 2.8, () => this.closeNotePaper())
+    // Tiempo editable a la vista (− ⏱ +) y el botón de IA con la palabra completa.
+    this.addSurfaceButton(this.notePaper, "NoteMinus", "−", new vec3(-8.7, -8.2, 0.7), 2.6, 2.8, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: -5}))
+    this.noteEstimate = this.addText(this.notePaper, "⏱ 15m", new vec3(-4.6, -8.2, 0.7), 24, 5.2, 2.8)
+    this.addSurfaceButton(this.notePaper, "NotePlus", "+", new vec3(-0.5, -8.2, 0.7), 2.6, 2.8, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: 5}))
+    this.addSurfaceButton(this.notePaper, "NoteEstimate", "✨ estimar", new vec3(5.9, -8.2, 0.7), 8.6, 2.8, () => this.estimateEvent.invoke(this.noteTaskIndex))
     this.notePaper.enabled = false
   }
 
