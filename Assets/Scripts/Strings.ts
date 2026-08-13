@@ -76,6 +76,11 @@ const EN = {
   estimateReady: "Estimate ready. Adjust it if it doesn't fit.",
   localSteps: ["Prepare only what you need", "Do the first small part", "Close with a quick review"],
   localEstimateMsg: "Local estimate (offline). Adjust with − and +.",
+  focusOn: "Focus on. Everything else can wait.",
+  focusRemaining: (clock: string) => `${clock} remaining`,
+  focusPause: "Ⅱ pause",
+  focusDone: "✓ done",
+  focusNudges: ["Hey! Focus — you're almost done!", "Let's finish this first!", "Back to it. Small step, big win."],
 }
 
 const ES: typeof EN = {
@@ -139,6 +144,11 @@ const ES: typeof EN = {
   estimateReady: "Estimación lista. Ajustala si no te cierra.",
   localSteps: ["Prepará solo lo necesario", "Hacé la primera parte pequeña", "Cerrá con una revisión corta"],
   localEstimateMsg: "Estimación local (sin conexión). Ajustala con − y +.",
+  focusOn: "Foco activado. El resto puede esperar.",
+  focusRemaining: (clock: string) => `quedan ${clock}`,
+  focusPause: "Ⅱ pausa",
+  focusDone: "✓ listo",
+  focusNudges: ["¡Hey! Foco — ¡ya casi terminás!", "¡Terminemos esto primero!", "Volvé. Paso chico, victoria grande."],
 }
 
 export const STR = LANG === "es" ? ES : EN

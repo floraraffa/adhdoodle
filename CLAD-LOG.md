@@ -45,3 +45,14 @@ Three features designed around the ADHD reality that distraction is fought with 
 - All user-facing strings extracted into `Strings.ts` with full English and Spanish tables: UI labels, coach messages, demo tasks, category names, and **the AI coach prompts** (system + user prompts per language, so the LLM answers in the user's language too).
 - **Language auto-detection**: the lens reads the device's system language (`deviceInfoSystem.getSystemLanguage()`, guarded with a fallback) and picks the table — Spanish speakers get Spanish, everyone else gets English. A `FORCE_LANG` override exists for demo recordings. Adding a language = adding one table.
 - Verified in preview: full UI rendering in English (cards, rows, controls, coach, check-in, post-it).
+
+## Day 1, session 5 — Aug 13, 2026 (Focus Mode + AI Focus Assistant)
+
+The evolution from "spatial task organizer" to "a spatial system that organizes your work AND helps you stay focused while doing it":
+
+- **Capability analysis first** (per the design brief): three detection options were evaluated — head-pose heuristics (free, private, offline, already tracked for the chip), single-frame camera vision through the existing Remote Service Gateway OpenAI integration, and microphone (rejected as invasive). Chosen: **two-factor detection** — sustained pose deviation as the trigger, one AI vision frame as the verifier. Two independent signals before ever interrupting.
+- **Focus Mode**: pressing ▶ now melts the entire UI away — cards, menus and controls disappear; what remains floating in the world is the task title, a large "12:43 remaining" countdown, and two minimal buttons (pause / done). The periphery chip stays as the look-away companion. Pause, done, skip or timer-end all restore the full organizer.
+- **FocusSentinel** (new script): anchors the "work zone" (position + gaze direction at Play). Accumulates *sustained* away-time (>2 m or >75° for ~45 s; recovery credits at 2× speed when you return), 60 s startup grace, 3-minute cooldown between interventions — deliberately quiet, per the "never interrupt constantly" requirement.
+- **AI vision verification**: on a sentinel candidate, one camera frame (Base64 JPEG) goes to GPT via RSG asking if the scene looks related to the task. "related" cancels the nudge and re-credits the user; "unrelated"/offline lets the nudge through (the sustained heuristic alone is already strong evidence). 8 s timeout race, everything wrapped so failures never break the flow.
+- **The nudge**: one short rotating message ("Hey! Focus — you're almost done!") + soft chime, auto-clears after 7 s. Localized EN/ES like everything else.
+- Verified in preview: Focus Mode strips the UI to task + clock + nudge + chip; restore works; compile and boot clean.

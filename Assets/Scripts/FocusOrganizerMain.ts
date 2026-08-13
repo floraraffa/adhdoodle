@@ -1,4 +1,5 @@
 import {FocusCarouselSwipe} from "./FocusCarouselSwipe"
+import {FocusSentinel} from "./FocusSentinel"
 import {FocusOrganizerCoach} from "./FocusOrganizerCoach"
 import {FocusOrganizerPanelUI} from "./FocusOrganizerPanelUI"
 import {FocusOrganizerState, FocusTaskState, SavedOrganizerState} from "./FocusOrganizerState"
@@ -32,6 +33,9 @@ export class FocusOrganizerMain extends BaseScriptComponent {
   private reminderKey = ""
   private reminderBucket = 0
   private sinceLastSave = 0
+  private focusMode = false
+  private sentinel = new FocusSentinel(() => this.onDistractionCandidate())
+  private nudgeIndex = 0
 
   onAwake(): void {
     this.swipe = this.sceneObject.createComponent(FocusCarouselSwipe.getTypeName()) as FocusCarouselSwipe
@@ -55,11 +59,13 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     this.panel.onNoteEdited.add(({taskIndex, text}) => { this.state.setNote(taskIndex, text); this.render(); this.saveState() })
     this.panel.onEstimateRequested.add((taskIndex) => this.estimateWithAI(taskIndex))
     this.panel.onCheckIn.add((drifted) => this.handleCheckIn(drifted))
+    this.panel.onFocusPause.add(() => this.pauseFromFocus())
+    this.panel.onFocusDone.add(() => { const running = this.state.runningContext; if (running) { this.state.selectCard(running.cardIndex); this.complete(running.taskIndex) } })
     this.panel.onTaskEdited.add(({taskIndex, text}) => { this.state.selectTask(taskIndex); this.state.upsertTask(taskIndex, text); this.render(); this.saveState() })
     this.panel.onMovePriority.add(({taskIndex, direction}) => { this.state.moveTask(taskIndex, direction); this.play(this.tapAudio); this.render(); this.saveState() })
     this.panel.onReminderCycle.add(() => this.cycleReminder())
     this.panel.onTimeDelta.add(({taskIndex, delta}) => { this.state.selectTask(taskIndex); this.state.adjustMinutes(delta); this.render(); this.saveState() })
-    this.panel.onPlay.add((index) => { const running = this.state.toggleTask(index); this.syncReminderTracking(); this.panel.hideCheckIn(); this.play(this.tapAudio); this.panel.setCoach(running ? STR.coachRunning : STR.coachPaused); this.render(); this.saveState() })
+    this.panel.onPlay.add((index) => { const running = this.state.toggleTask(index); this.syncReminderTracking(); this.panel.hideCheckIn(); this.play(this.tapAudio); this.panel.setCoach(running ? STR.coachRunning : STR.coachPaused); if (running) this.enterFocus(); else this.exitFocus(); this.render(); this.saveState() })
     this.panel.onSkip.add((index) => this.skip(index))
     this.panel.onDone.add((index) => this.complete(index))
     this.reminderMinutes = this.reminderMinutes === 10 ? 10 : this.reminderMinutes === 0 ? 0 : 5
@@ -73,7 +79,10 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     const running = this.state.runningContext
     const second = Math.ceil(running?.task.remainingSeconds ?? this.state.activeTask?.remainingSeconds ?? 0)
     if (second !== this.lastSecond) this.render()
-    this.checkReminder(running)
+    if (!this.focusMode) this.checkReminder(running)
+    this.sentinel.update(getDeltaTime())
+    if (this.focusMode && running) this.panel.renderFocus(running.task.title, running.task.remainingSeconds)
+    if (this.focusMode && !running) this.exitFocus()
     this.panel.updateFocusChip(running ? {
       title: running.task.title,
       remainingSeconds: running.task.remainingSeconds,
@@ -94,6 +103,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     const category = this.state.activeCard.category
     const task = this.state.skipTask(index)
     this.panel.hideCheckIn()
+    this.exitFocus()
     this.play(this.tapAudio); this.render(); this.saveState(); this.panel.setCoach(STR.coachSkipped)
     if (task) this.coach.guideSkip(category, task).then((message) => this.panel.setCoach(message))
   }
@@ -102,6 +112,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     const category = this.state.activeCard.category
     const task = this.state.completeTask(index)
     this.panel.hideCheckIn()
+    this.exitFocus()
     this.play(this.doneAudio); this.render(); this.saveState(); this.panel.setCoach(STR.coachDone)
     if (task) this.coach.celebrate(category, task).then((message) => this.panel.setCoach(message))
   }
@@ -165,6 +176,53 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     this.panel.render(this.state.allCards, this.state.activeCardIndex, this.state.activeTaskIndex)
     // Túnel solo si la tarea corriendo está en la card que se mira.
     this.panel.setTunnel(running && running.cardIndex === this.state.activeCardIndex ? running.taskIndex : null)
+  }
+
+  private enterFocus(): void {
+    if (this.focusMode) return
+    this.focusMode = true
+    this.panel.setFocusMode(true)
+    this.sentinel.start()
+    this.panel.setCoach(STR.focusOn)
+    print("[FocusMode] activado")
+  }
+
+  private exitFocus(): void {
+    if (!this.focusMode) return
+    this.focusMode = false
+    this.panel.setFocusMode(false)
+    this.sentinel.stop()
+    this.render()
+    print("[FocusMode] desactivado")
+  }
+
+  private pauseFromFocus(): void {
+    const running = this.state.runningContext
+    if (running) {
+      this.state.selectCard(running.cardIndex)
+      this.state.toggleTask(running.taskIndex)
+    }
+    this.exitFocus()
+    this.panel.setCoach(STR.coachPaused)
+    this.render()
+    this.saveState()
+  }
+
+  // Candidato de la heurística de pose → verificación con UN frame de visión IA.
+  private onDistractionCandidate(): void {
+    const running = this.state.runningContext
+    if (!running || !this.focusMode) return
+    this.coach.verifyFocusVision(running.task.title).then((verdict) => {
+      print(`[FocusSentinel] visión: ${verdict}`)
+      if (verdict === "related") { this.sentinel.markStillFocused(); return }
+      const message = STR.focusNudges[this.nudgeIndex % STR.focusNudges.length]
+      this.nudgeIndex++
+      this.panel.showFocusNudge(message)
+      this.play(this.reminderAudio)
+      const hide = this.createEvent("DelayedCallbackEvent")
+      hide.bind(() => this.panel.clearFocusNudge())
+      hide.reset(7)
+    })
   }
 
   private handleCheckIn(drifted: boolean): void {

@@ -73,6 +73,13 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private chipTitle: Text | null = null
   private chipInfo: Text | null = null
   private chipSnapped = false
+  private focusRoot: SceneObject | null = null
+  private focusTitle: Text | null = null
+  private focusClock: Text | null = null
+  private focusNudge: Text | null = null
+  private focusActive = false
+  private readonly focusPauseEvent = new Event<void>()
+  private readonly focusDoneEvent = new Event<void>()
 
   get onTaskEdited(): PublicApi<TaskTextEdit> { return this.editEvent.publicApi() }
   get onMovePriority(): PublicApi<{taskIndex: number; direction: number}> { return this.movePriorityEvent.publicApi() }
@@ -85,6 +92,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   get onEstimateRequested(): PublicApi<number> { return this.estimateEvent.publicApi() }
   /** true = "me distraje", false = "sigo" */
   get onCheckIn(): PublicApi<boolean> { return this.checkInEvent.publicApi() }
+  get onFocusPause(): PublicApi<void> { return this.focusPauseEvent.publicApi() }
+  get onFocusDone(): PublicApi<void> { return this.focusDoneEvent.publicApi() }
 
   onAwake(): void {
     const authored = this.sceneObject.getTransform().getLocalPosition()
@@ -95,6 +104,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.createDetails()
     this.createNotePaper()
     this.createFocusChip()
+    this.createFocusView()
     this.updateCarouselTargets()
     this.createEvent("OnStartEvent").bind(() => this.centerHorizontallyInView())
     this.createEvent("UpdateEvent").bind(() => this.animateCarousel())
@@ -181,6 +191,48 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.addSurfaceButton(this.checkInRoot, "CheckFocused", STR.checkFocused, new vec3(-5.6, 0, 0), 8, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(false) })
     this.addSurfaceButton(this.checkInRoot, "CheckDrifted", STR.checkDrifted, new vec3(5.6, 0, 0), 10.5, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(true) })
     this.checkInRoot.enabled = false
+  }
+
+  // ——— Focus Mode: espacio visual limpio — solo la tarea y el reloj ———
+
+  private createFocusView(): void {
+    this.focusRoot = this.obj(this.sceneObject, "FocusView", new vec3(0, 0, 2))
+    this.focusTitle = this.addText(this.focusRoot, "", new vec3(0, 8, 0), 64, 44, 5)
+    this.focusClock = this.addText(this.focusRoot, "", new vec3(0, 0, 0), 46, 44, 4)
+    this.focusNudge = this.addText(this.focusRoot, "", new vec3(0, -7, 0), 30, 40, 3)
+    this.addSurfaceButton(this.focusRoot, "FocusPause", STR.focusPause, new vec3(-6.5, -16, 0), 9, 3.2, () => this.focusPauseEvent.invoke())
+    this.addSurfaceButton(this.focusRoot, "FocusDone", STR.focusDone, new vec3(6.5, -16, 0), 9, 3.2, () => this.focusDoneEvent.invoke())
+    this.focusRoot.enabled = false
+  }
+
+  setFocusMode(active: boolean): void {
+    if (this.focusActive === active) return
+    this.focusActive = active
+    if (this.focusRoot) this.focusRoot.enabled = active
+    if (active) {
+      this.closeNotePaper()
+      this.hideCheckIn()
+      if (this.focusNudge) this.focusNudge.text = ""
+      for (const root of this.cardRoots) root.enabled = false
+    } else {
+      this.updateCarouselTargets()
+    }
+  }
+
+  renderFocus(title: string, remainingSeconds: number): void {
+    if (!this.focusActive) return
+    if (this.focusTitle) this.focusTitle.text = title
+    const minutes = Math.floor(remainingSeconds / 60)
+    const seconds = Math.floor(remainingSeconds % 60)
+    if (this.focusClock) this.focusClock.text = STR.focusRemaining(`${minutes}:${seconds < 10 ? "0" : ""}${seconds}`)
+  }
+
+  showFocusNudge(message: string): void {
+    if (this.focusNudge) this.focusNudge.text = message
+  }
+
+  clearFocusNudge(): void {
+    if (this.focusNudge) this.focusNudge.text = ""
   }
 
   // ——— Chip de foco: memoria externa en la periferia ———
@@ -347,6 +399,10 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   }
 
   private updateCarouselTargets(): void {
+    if (this.focusActive) {
+      for (const root of this.cardRoots) root.enabled = false
+      return
+    }
     const count = this.cardRoots.length
     // El arrastre corre todo el carrusel de forma continua; al soltar, el snap
     // cambia selectedCard y las cards ya están casi en su lugar (sin salto).

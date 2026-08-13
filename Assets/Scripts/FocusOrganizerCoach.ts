@@ -23,6 +23,36 @@ export class FocusOrganizerCoach {
     return this.localEstimate(task)
   }
 
+  /**
+   * Segundo factor del asistente de foco: ante un candidato a distracción de la
+   * heurística de pose, UN frame de cámara le pregunta a la IA si la escena
+   * parece relacionada con la tarea. "related" cancela la intervención;
+   * "unrelated"/"unknown" la habilitan (con red caída se interviene igual:
+   * la heurística sola ya es señal sostenida).
+   */
+  async verifyFocusVision(taskTitle: string): Promise<"related" | "unrelated" | "unknown"> {
+    const attempt = this.askVision(taskTitle).catch(() => "unknown" as const)
+    const winner = await Promise.race([attempt, this.delay(8).then(() => "unknown" as const)])
+    return winner
+  }
+
+  private async askVision(taskTitle: string): Promise<"related" | "unrelated" | "unknown"> {
+    const cameraTexture = requireAsset("../Render/Device Camera Texture.deviceCameraTexture") as Texture
+    const encoded = await new Promise<string>((resolve, reject) =>
+      Base64.encodeTextureAsync(cameraTexture, resolve, reject, CompressionQuality.LowQuality, EncodingType.Jpg)
+    )
+    const response = await OpenAI.chatCompletions({model: "gpt-4.1-nano", messages: [
+      {role: "user", content: [
+        {type: "text", text: `First-person view from smart glasses. The user's current task is: "${taskTitle}". Does the scene look plausibly related to working on that task? Reply with exactly one word: related, unrelated or unclear.`},
+        {type: "image_url", image_url: {url: `data:image/jpeg;base64,${encoded}`}},
+      ]},
+    ] as never, temperature: 0})
+    const verdict = (response.choices[0].message.content || "").toLowerCase()
+    if (verdict.includes("unrelated")) return "unrelated"
+    if (verdict.includes("related")) return "related"
+    return "unknown"
+  }
+
   private async askOpenAI(prompt: string): Promise<TaskEstimate> {
     const response = await OpenAI.chatCompletions({model: "gpt-4.1-nano", messages: [
       {role: "system", content: STR.coachSystemJson},
