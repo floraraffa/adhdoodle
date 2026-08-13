@@ -174,7 +174,18 @@ export class FocusOrganizerState {
   }
 
   restore(saved: SavedOrganizerState): boolean {
-    if (!saved || saved.version !== 1 || !Array.isArray(saved.cards) || saved.cards.length !== this.cards.length) return false
+    if (!saved || saved.version !== 1 || !Array.isArray(saved.cards)) return false
+    // Migración del layout viejo de 6 categorías al nuevo de 3 tabs (Home/Work/Me time).
+    if (saved.cards.length === 6 && this.cards.length === 3) {
+      const mapping = [1, 0, 2, 0, 2, 2] // Trabajo→Work, Casa→Home, Relax→Me, Comida→Home, Amigos→Me, Hiperfoco→Me
+      const merged: {category: string; tasks: FocusTaskState[]}[] = this.cards.map((card) => ({category: card.category, tasks: []}))
+      for (let index = 0; index < saved.cards.length; index++) {
+        const tasks = saved.cards[index]?.tasks
+        if (Array.isArray(tasks)) merged[mapping[index]].tasks.push(...tasks)
+      }
+      saved = {version: 1, selectedCard: 0, cards: merged}
+    }
+    if (saved.cards.length !== this.cards.length) return false
     for (let index = 0; index < this.cards.length; index++) {
       const tasks = saved.cards[index]?.tasks
       if (!Array.isArray(tasks)) return false

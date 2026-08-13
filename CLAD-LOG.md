@@ -56,3 +56,11 @@ The evolution from "spatial task organizer" to "a spatial system that organizes 
 - **AI vision verification**: on a sentinel candidate, one camera frame (Base64 JPEG) goes to GPT via RSG asking if the scene looks related to the task. "related" cancels the nudge and re-credits the user; "unrelated"/offline lets the nudge through (the sustained heuristic alone is already strong evidence). 8 s timeout race, everything wrapped so failures never break the flow.
 - **The nudge**: one short rotating message ("Hey! Focus — you're almost done!") + soft chime, auto-clears after 7 s. Localized EN/ES like everything else.
 - Verified in preview: Focus Mode strips the UI to task + clock + nudge + chip; restore works; compile and boot clean.
+
+## Day 1, session 6 — Aug 13, 2026 (design direction: kawaii notebook + cloud companion)
+
+Flor delivered the visual direction: a hand-drawn spiral notebook agenda (pastel washi-tape task strips, DO FIRST/NEXT/LATER badges, side tabs HOME/WORK/ME TIME) with a **cloud mascot as the physical embodiment of the AI coach** — it comments in the agenda and becomes the floating companion (with timer + task) in Focus Mode. Feasibility mapped 1:1 onto the existing architecture; asset production split agreed (Flor produces transparent PNGs, Claude integrates).
+
+Structural work done ahead of the assets:
+- **6 categories → 3 tabs** (Home / Work / Me time) per the design, including automatic migration of previously saved 6-card states (Trabajo→Work, Casa+Comida→Home, Relax+Amigos+Hiperfoco→Me time). Verified: an old saved state restored with merged cards.
+- **Priority badges**: rows now show 🔥 (do first) / ⭐ (next) / 🍃 (later) instead of P1/P2/Pn.

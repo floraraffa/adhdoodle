@@ -16,14 +16,11 @@ function detectLang(): Lang {
 export const LANG: Lang = detectLang()
 
 const EN = {
-  categories: ["Work", "Home", "Relax", "Food + wellbeing", "Friends", "Hyperfocus"],
+  categories: ["Home", "Work", "Me time"],
   demoTasks: [
-    ["Pick the first step", "Check important messages", "Prepare the draft", "Send an update", "Schedule the follow-up", "Close distracting tabs"],
-    ["Clear one surface", "Start the laundry"],
-    ["Rest without screens"],
-    ["Drink water", "Make something nourishing"],
-    ["Text someone"],
-    ["Set a kind limit", "Stretch break"],
+    ["Clear one surface", "Start the laundry", "Make something nourishing"],
+    ["Finish presentation", "Check important messages", "Prepare the draft", "Send an update"],
+    ["Rest without screens", "Text someone", "Stretch break"],
   ],
   newTaskDefault: "New task",
   taskCount: (total: number, done: number) => `${total} tasks · ${done} done`,
@@ -81,17 +78,15 @@ const EN = {
   focusPause: "Ⅱ pause",
   focusDone: "✓ done",
   focusNudges: ["Hey! Focus — you're almost done!", "Let's finish this first!", "Back to it. Small step, big win."],
+  badges: ["🔥", "⭐", "🍃"],
 }
 
 const ES: typeof EN = {
-  categories: ["Trabajo", "Casa", "Relax", "Comida + bienestar", "Amigos", "Hiperfoco"],
+  categories: ["Casa", "Trabajo", "Mi tiempo"],
   demoTasks: [
-    ["Elegir el primer paso", "Revisar mensajes importantes", "Preparar el borrador", "Enviar una actualización", "Agendar el seguimiento", "Cerrar pestañas que distraen"],
-    ["Ordenar una superficie", "Poner una lavadora"],
-    ["Descansar sin pantalla"],
-    ["Tomar agua", "Preparar algo nutritivo"],
-    ["Escribir a alguien"],
-    ["Definir un límite amable", "Pausa para estirar"],
+    ["Ordenar una superficie", "Poner una lavadora", "Preparar algo nutritivo"],
+    ["Terminar la presentación", "Revisar mensajes importantes", "Preparar el borrador", "Enviar una actualización"],
+    ["Descansar sin pantalla", "Escribir a alguien", "Pausa para estirar"],
   ],
   newTaskDefault: "Nueva tarea",
   taskCount: (total: number, done: number) => `${total} tareas · ${done} hechas`,
@@ -149,6 +144,7 @@ const ES: typeof EN = {
   focusPause: "Ⅱ pausa",
   focusDone: "✓ listo",
   focusNudges: ["¡Hey! Foco — ¡ya casi terminás!", "¡Terminemos esto primero!", "Volvé. Paso chico, victoria grande."],
+  badges: ["🔥", "⭐", "🍃"],
 }
 
 export const STR = LANG === "es" ? ES : EN

@@ -100,7 +100,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.sceneObject.getTransform().setLocalPosition(new vec3(0, authored.y, authored.z))
     this.sceneObject.createComponent("Component.Canvas")
     this.sceneObject.createComponent(Billboard.getTypeName())
-    for (let index = 0; index < 6; index++) this.createCard(index)
+    for (let index = 0; index < STR.categories.length; index++) this.createCard(index)
     this.createDetails()
     this.createNotePaper()
     this.createFocusChip()
@@ -388,7 +388,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     const clock = `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`
     const status = task.status === "done" ? " ✓" : task.status === "skipped" ? " ↷" : ""
     this.taskLabels[row].text = `${selected}${this.short(task.title)}\n${clock}${status}`
-    this.priorityLabels[row].text = `P${task.priority}`
+    this.priorityLabels[row].text = STR.badges[Math.min(task.priority - 1, STR.badges.length - 1)]
     this.playLabels[row].text = task.status === "running" ? "Ⅱ" : "▶"
     this.tint(this.taskPlates[row], task.status === "running" ? RUNNING_ROW_COLOR : actualIndex === this.selectedTask ? SELECTED_ROW_COLOR : CONTROL_COLOR)
   }
