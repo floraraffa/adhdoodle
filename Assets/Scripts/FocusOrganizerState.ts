@@ -7,6 +7,8 @@ export interface FocusTaskState {
   priority: number
   status: TaskStatus
   focusElapsedSeconds: number
+  note: string
+  aiSteps: string[]
 }
 
 export interface FocusCardState {
@@ -96,6 +98,20 @@ export class FocusOrganizerState {
     if (task.status !== "running") task.remainingSeconds = task.durationMinutes * 60
   }
 
+  setNote(index: number, text: string): void {
+    const task = this.activeCard.tasks[index]
+    if (!task) return
+    task.note = text.substring(0, 800)
+  }
+
+  applyEstimate(index: number, minutes: number, steps: string[]): void {
+    const task = this.activeCard.tasks[index]
+    if (!task) return
+    task.durationMinutes = Math.max(5, Math.min(90, Math.round(minutes)))
+    if (task.status !== "running") task.remainingSeconds = task.durationMinutes * 60
+    task.aiSteps = steps.slice(0, 6).map((step) => step.substring(0, 120))
+  }
+
   toggleTask(index: number): boolean {
     const task = this.activeCard.tasks[index]
     if (!task) return false
@@ -168,6 +184,10 @@ export class FocusOrganizerState {
           // retomar el foco es una decisión del usuario, no del sistema.
           status: this.sanitizeStatus(task.status),
           focusElapsedSeconds: this.clampNumber(task.focusElapsedSeconds, 0, 24 * 3600, 0),
+          note: typeof task.note === "string" ? task.note.substring(0, 800) : "",
+          aiSteps: Array.isArray(task.aiSteps)
+            ? task.aiSteps.filter((step) => typeof step === "string").slice(0, 6).map((step) => step.substring(0, 120))
+            : [],
         }))
       this.refreshPriorities(this.cards[index].tasks)
     }
@@ -206,7 +226,7 @@ export class FocusOrganizerState {
   }
 
   private task(title: string, priority: number = 1): FocusTaskState {
-    return {title, durationMinutes: 15, remainingSeconds: 900, priority, status: "idle", focusElapsedSeconds: 0}
+    return {title, durationMinutes: 15, remainingSeconds: 900, priority, status: "idle", focusElapsedSeconds: 0, note: "", aiSteps: []}
   }
 
   private refreshPriorities(tasks: FocusTaskState[]): void {

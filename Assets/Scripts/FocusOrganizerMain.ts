@@ -22,7 +22,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
   @input sfxVolume: number = 0.65
   @input reminderMinutes: number = 5
   private state = new FocusOrganizerState()
-  private coach = new FocusOrganizerCoach()
+  private coach = new FocusOrganizerCoach(this)
   private swipe!: FocusCarouselSwipe
   private tapAudio: AudioComponent | null = null
   private doneAudio: AudioComponent | null = null
@@ -50,6 +50,9 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     this.reminderAudio = this.createSfx("FocusReminderAudio", FOCUS_REMINDER)
     this.swipe.onSwipe.add((direction) => { this.state.moveCard(direction); this.play(this.tapAudio); this.panel.setCoach("Elegí una tarea de esta card"); this.render() })
     this.swipe.onScroll.add((direction) => { this.panel.scrollTasks(direction); this.play(this.tapAudio) })
+    this.swipe.onDragProgress.add((progress) => this.panel.setCarouselDrag(progress))
+    this.panel.onNoteEdited.add(({taskIndex, text}) => { this.state.setNote(taskIndex, text); this.render(); this.saveState() })
+    this.panel.onEstimateRequested.add((taskIndex) => this.estimateWithAI(taskIndex))
     this.panel.onTaskEdited.add(({taskIndex, text}) => { this.state.selectTask(taskIndex); this.state.upsertTask(taskIndex, text); this.render(); this.saveState() })
     this.panel.onMovePriority.add(({taskIndex, direction}) => { this.state.moveTask(taskIndex, direction); this.play(this.tapAudio); this.render(); this.saveState() })
     this.panel.onReminderCycle.add(() => this.cycleReminder())
@@ -92,6 +95,21 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     const task = this.state.completeTask(index)
     this.play(this.doneAudio); this.render(); this.saveState(); this.panel.setCoach("Hecho. Ya cuenta.")
     if (task) this.coach.celebrate(category, task).then((message) => this.panel.setCoach(message))
+  }
+
+  private estimateWithAI(taskIndex: number): void {
+    const task = this.state.activeCard.tasks[taskIndex]
+    if (!task) return
+    print(`[FocusCoach] estimando "${task.title}"…`)
+    this.panel.setCoach("Pensando una estimación amable…")
+    this.coach.estimateTask(this.state.activeCard.category, task).then((estimate) => {
+      this.state.selectTask(taskIndex)
+      this.state.applyEstimate(taskIndex, estimate.minutes, estimate.steps)
+      this.panel.setCoach(estimate.message)
+      this.render()
+      this.saveState()
+      print(`[FocusCoach] estimación: ${estimate.minutes} min, ${estimate.steps.length} pasos`)
+    })
   }
 
   private cycleReminder(): void {

@@ -4,14 +4,19 @@ import Event, {PublicApi} from "SpectaclesInteractionKit.lspkg/Utils/Event"
 
 const SWIPE_THRESHOLD_3D = 5
 const SWIPE_THRESHOLD_2D = 0.05
-const INDEX_DRAG_THRESHOLD_CM = 6
 const INDEX_TOUCH_DEPTH_CM = 7
 const INDEX_RELEASE_DEPTH_CM = 10
+// Arrastre continuo: cuántos cm de dedo equivalen a "una card entera"
+const DRAG_RANGE_CM = 26
+const DRAG_RANGE_2D = 0.3
+// Al soltar, con cuánto avance se pasa a la card vecina
+const SNAP_THRESHOLD = 0.3
 
 @component
 export class FocusCarouselSwipe extends BaseScriptComponent {
   private readonly swipeEvent = new Event<number>()
   private readonly scrollEvent = new Event<number>()
+  private readonly dragEvent = new Event<number>()
   private handProvider = HandInputData.getInstance()
   private cameraProvider = WorldCameraFinderProvider.getInstance()
   private states = {
@@ -19,14 +24,17 @@ export class FocusCarouselSwipe extends BaseScriptComponent {
     right: {pinching: false, start: vec3.zero(), maxDelta: vec3.zero(), time: 0},
   }
   private touchStart = vec2.zero()
+  private touchDragging = false
   private indexDragTarget: SceneObject | null = null
   private indexStates = {
-    left: {touching: false, start: vec3.zero(), fired: false},
-    right: {touching: false, start: vec3.zero(), fired: false},
+    left: {touching: false, start: vec3.zero(), progress: 0},
+    right: {touching: false, start: vec3.zero(), progress: 0},
   }
 
   get onSwipe(): PublicApi<number> { return this.swipeEvent.publicApi() }
   get onScroll(): PublicApi<number> { return this.scrollEvent.publicApi() }
+  /** Avance continuo del arrastre en cards (-1..1) mientras el dedo se mueve; 0 al soltar. */
+  get onDragProgress(): PublicApi<number> { return this.dragEvent.publicApi() }
 
   setIndexDragTarget(target: SceneObject): void { this.indexDragTarget = target }
 
@@ -64,9 +72,22 @@ export class FocusCarouselSwipe extends BaseScriptComponent {
       this.updateIndexDrag("right", right)
       this.updateIndexDrag("left", left)
     })
-    this.createEvent("TouchStartEvent").bind((event: TouchStartEvent) => { this.touchStart = event.getTouchPosition() })
+    this.createEvent("TouchStartEvent").bind((event: TouchStartEvent) => { this.touchStart = event.getTouchPosition(); this.touchDragging = false })
+    this.createEvent("TouchMoveEvent").bind((event: TouchMoveEvent) => {
+      const delta = event.getTouchPosition().sub(this.touchStart)
+      if (!this.touchDragging && Math.abs(delta.x) < SWIPE_THRESHOLD_2D) return
+      if (!this.touchDragging && Math.abs(delta.x) < Math.abs(delta.y) * 1.2) return
+      this.touchDragging = true
+      this.dragEvent.invoke(Math.max(-1.2, Math.min(1.2, delta.x / DRAG_RANGE_2D)))
+    })
     this.createEvent("TouchEndEvent").bind((event: TouchEndEvent) => {
       const delta = event.getTouchPosition().sub(this.touchStart)
+      if (this.touchDragging) {
+        this.touchDragging = false
+        this.dragEvent.invoke(0)
+        if (Math.abs(delta.x / DRAG_RANGE_2D) >= SNAP_THRESHOLD) this.emit(delta.x)
+        return
+      }
       if (delta.length < SWIPE_THRESHOLD_2D) return
       if (Math.abs(delta.x) > Math.abs(delta.y) * 1.2) this.emit(delta.x)
       else if (Math.abs(delta.y) > Math.abs(delta.x) * 1.2) this.emitScroll(delta.y > 0 ? -1 : 1)
@@ -76,8 +97,7 @@ export class FocusCarouselSwipe extends BaseScriptComponent {
   private updateIndexDrag(type: "left" | "right", hand: any): void {
     const state = this.indexStates[type]
     if (!this.indexDragTarget || !hand?.isTracked() || this.states[type].pinching) {
-      state.touching = false
-      state.fired = false
+      this.releaseIndexDrag(state)
       return
     }
     const local = this.indexDragTarget.getTransform().getInvertedWorldTransform().multiplyPoint(hand.indexTip.position)
@@ -87,20 +107,28 @@ export class FocusCarouselSwipe extends BaseScriptComponent {
       if (!touchingPlane) return
       state.touching = true
       state.start = local
-      state.fired = false
+      state.progress = 0
       return
     }
     if (!insideXY || Math.abs(local.z) > INDEX_RELEASE_DEPTH_CM) {
-      state.touching = false
-      state.fired = false
+      this.releaseIndexDrag(state)
       return
     }
-    if (state.fired) return
     const delta = local.sub(state.start)
-    if (Math.abs(delta.x) < INDEX_DRAG_THRESHOLD_CM || Math.abs(delta.x) < Math.abs(delta.y) * 1.35) return
-    state.fired = true
-    this.emit(delta.x)
-    print(`[Carousel] arrastre directo con índice ${type}`)
+    // Las cards siguen al dedo: avance proporcional, no un salto por umbral.
+    state.progress = Math.max(-1.2, Math.min(1.2, delta.x / DRAG_RANGE_CM))
+    this.dragEvent.invoke(state.progress)
+  }
+
+  private releaseIndexDrag(state: {touching: boolean; start: vec3; progress: number}): void {
+    if (!state.touching) return
+    state.touching = false
+    this.dragEvent.invoke(0)
+    if (Math.abs(state.progress) >= SNAP_THRESHOLD) {
+      this.emit(state.progress)
+      print("[Carousel] snap por arrastre continuo")
+    }
+    state.progress = 0
   }
 
   private detect3D(delta: vec3, duration: number): void {

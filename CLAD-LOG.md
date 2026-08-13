@@ -20,3 +20,13 @@ The first version of the lens was built iteratively with AI assistance inside Le
 - **Verified end-to-end in preview via MCP:** started a task (countdown 14:54, row highlighted), reset the lens, log shows `estado restaurado de la sesión anterior` and the task came back at 14:49, paused. Debugging note: SIK interactables in preview need a press-hold-release gesture sequence when injected programmatically; real finger taps are unaffected.
 
 **Next:** spatial "focus chip" companion (mini timer that follows the running task into the periphery), English UI strings for the demo, demo video + README + description in English, public repo push.
+
+## Day 1, session 2 — Aug 13, 2026 (fluid carousel + task note paper with AI estimates)
+
+Two UX upgrades requested by Flor, implemented by Claude through the Lens Studio MCP:
+
+- **Continuous carousel drag** — replaced the threshold-fires-once swipe with cards that follow the finger (`onDragProgress` event streaming -1..1 from both the index-finger plane drag and 2D touch), with scale/depth blending toward the incoming card and a 30% snap threshold on release. The snap lands where the cards already are, so there is no visual jump.
+- **Task note paper ("papelito")** — tapping a task now opens a cream paper over the card: free-form note (Spectacles keyboard), editable time estimate, and a **✨ estimate button**: OpenAI (via Remote Service Gateway) reads the title + note and returns JSON with a realistic ADHD-aware estimate (with buffer), 2-4 micro-steps (first one under 5 minutes to beat task initiation), and a short encouragement. Estimate lands in the task timer (still editable with −5m/+5m), steps render numbered on the paper, everything persists.
+- **Resilience decision:** the RSG call races an 8-second `DelayedCallbackEvent` timeout and falls back to a local heuristic (minutes from note length, steps from note lines) so the flow works with no network and never hangs. JSON from the model is sanitized (clamped minutes, capped steps).
+- **Verified in preview:** drag-snap logged `snap por arrastre continuo`; paper opened with placeholder, estimate button visible; end-to-end estimate validated via a temporary debug call — remote OpenAI responded in ~1.4s: `estimación: 10 min, 4 pasos` (debug line removed afterwards). Persistence restore confirmed again after recompile.
+- **Tooling note:** injected preview gestures trigger SIK interactables only ~50% of the time (needs press-hold-release); real finger taps are unaffected. Preview persistent storage sometimes clears on script recompile; on-device storage is unaffected.

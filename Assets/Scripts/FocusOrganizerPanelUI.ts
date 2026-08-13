@@ -14,6 +14,7 @@ const COLORS = [
 ]
 
 const CONTROL_COLOR = new vec4(0.96, 0.97, 1.00, 1)
+const PAPER_COLOR = new vec4(1.00, 0.98, 0.90, 1)
 const SELECTED_ROW_COLOR = new vec4(0.84, 0.91, 1.00, 1)
 const RUNNING_ROW_COLOR = new vec4(1.00, 0.86, 0.58, 1)
 const TEXT_COLOR = new vec4(0.42, 0.31, 0.58, 1)
@@ -36,6 +37,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private readonly skipEvent = new Event<number>()
   private readonly doneEvent = new Event<number>()
   private readonly timeEvent = new Event<{taskIndex: number; delta: number}>()
+  private readonly noteEvent = new Event<TaskTextEdit>()
+  private readonly estimateEvent = new Event<number>()
 
   private cardRoots: SceneObject[] = []
   private cardSummaries: Text[] = []
@@ -53,6 +56,13 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private selectedTask = 0
   private scrollOffset = 0
   private cards: readonly FocusCardState[] = []
+  private dragShift = 0
+  private notePaper: SceneObject | null = null
+  private noteTaskIndex = 0
+  private noteTitle: Text | null = null
+  private noteBody: Text | null = null
+  private noteSteps: Text | null = null
+  private noteEstimate: Text | null = null
 
   get onTaskEdited(): PublicApi<TaskTextEdit> { return this.editEvent.publicApi() }
   get onMovePriority(): PublicApi<{taskIndex: number; direction: number}> { return this.movePriorityEvent.publicApi() }
@@ -61,6 +71,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   get onSkip(): PublicApi<number> { return this.skipEvent.publicApi() }
   get onDone(): PublicApi<number> { return this.doneEvent.publicApi() }
   get onTimeDelta(): PublicApi<{taskIndex: number; delta: number}> { return this.timeEvent.publicApi() }
+  get onNoteEdited(): PublicApi<TaskTextEdit> { return this.noteEvent.publicApi() }
+  get onEstimateRequested(): PublicApi<number> { return this.estimateEvent.publicApi() }
 
   onAwake(): void {
     const authored = this.sceneObject.getTransform().getLocalPosition()
@@ -69,6 +81,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.sceneObject.createComponent(Billboard.getTypeName())
     for (let index = 0; index < 6; index++) this.createCard(index)
     this.createDetails()
+    this.createNotePaper()
     this.updateCarouselTargets()
     this.createEvent("OnStartEvent").bind(() => this.centerHorizontallyInView())
     this.createEvent("UpdateEvent").bind(() => this.animateCarousel())
@@ -97,6 +110,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     }
     const tasks = cards[selectedCard].tasks
     for (let row = 0; row < 4; row++) this.renderTask(row, tasks[this.scrollOffset + row])
+    if (cardChanged) this.closeNotePaper()
+    if (this.notePaper?.enabled) this.refreshNotePaper()
   }
 
   setCoach(message: string): void { if (this.coachText) this.coachText.text = message }
@@ -130,7 +145,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.detailRoot = this.obj(this.cardRoots[0], "ActiveCardTasks", vec3.zero())
     for (let row = 0; row < 4; row++) {
       const y = ROW_Y[row]
-      this.taskLabels[row] = this.addSurfaceButton(this.detailRoot, `Task-${row}`, "+ Agregar tarea", new vec3(-9, y, 1), 20, 4.8, () => this.openKeyboard(this.visibleIndex(row)), (plate) => { this.taskPlates[row] = plate })
+      this.taskLabels[row] = this.addSurfaceButton(this.detailRoot, `Task-${row}`, "+ Agregar tarea", new vec3(-9, y, 1), 20, 4.8, () => this.onRowPressed(this.visibleIndex(row)), (plate) => { this.taskPlates[row] = plate })
       this.priorityLabels[row] = this.addSurfaceButton(this.detailRoot, `Priority-${row}`, "P2", new vec3(3.2, y, 1), 3.8, 4.2, () => { this.selectedTask = this.visibleIndex(row) })
       this.playLabels[row] = this.addSurfaceButton(this.detailRoot, `Play-${row}`, "▶", new vec3(7.3, y, 1), 3.8, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.playEvent.invoke(i) })
       this.addSurfaceButton(this.detailRoot, `Skip-${row}`, "Pasar", new vec3(12.3, y, 1), 5.8, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.skipEvent.invoke(i) })
@@ -146,6 +161,67 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.addText(this.detailRoot, "índice ↔ cards", new vec3(0, -18.5, 1), 26, 8.5, 1.5)
     this.addSurfaceButton(this.detailRoot, "ScrollDown", "↓ lista", new vec3(8, -18.5, 1), 6.5, 2.6, () => this.scrollTasks(1))
     this.coachText = this.addText(this.detailRoot, "Elegí una tarea y presioná ▶", new vec3(0, -20.7, 1), 29, 38, 2)
+  }
+
+  // ——— Papelito de tarea: notas + estimación IA ———
+
+  private createNotePaper(): void {
+    this.notePaper = this.obj(this.sceneObject, "NotePaper", new vec3(0, 0, 6))
+    const plate = this.notePaper.createComponent(BackPlate.getTypeName()) as BackPlate
+    plate.size = new vec2(40, 44)
+    plate.style = "simple"
+    this.tint(plate, PAPER_COLOR)
+    this.makeDecorative(plate)
+    this.noteTitle = this.addText(this.notePaper, "", new vec3(-3, 18.3, 0.7), 40, 28, 3.2)
+    this.addSurfaceButton(this.notePaper, "EditTitle", "✏", new vec3(15, 18.3, 0.7), 4, 3.4, () => this.openKeyboard(this.noteTaskIndex))
+    this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(0, 7.5, 0.7), 35, 16, () => this.openNoteKeyboard())
+    this.noteSteps = this.addText(this.notePaper, "", new vec3(0, -6.2, 0.7), 26, 34, 9)
+    this.noteEstimate = this.addText(this.notePaper, "⏱ 15 min", new vec3(-12.5, -13.8, 0.7), 33, 9, 3.4)
+    this.addSurfaceButton(this.notePaper, "NoteMinus", "−5m", new vec3(-5.5, -13.8, 0.7), 4.6, 3.4, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: -5}))
+    this.addSurfaceButton(this.notePaper, "NotePlus", "+5m", new vec3(-0.5, -13.8, 0.7), 4.6, 3.4, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: 5}))
+    this.addSurfaceButton(this.notePaper, "NoteEstimate", "✨ estimar", new vec3(8, -13.8, 0.7), 9.5, 3.4, () => this.estimateEvent.invoke(this.noteTaskIndex))
+    this.addSurfaceButton(this.notePaper, "NoteClose", "✕ cerrar", new vec3(0, -18.6, 0.7), 8.5, 3, () => this.closeNotePaper())
+    this.notePaper.enabled = false
+  }
+
+  private onRowPressed(index: number): void {
+    this.selectedTask = index
+    const task = this.cards[this.selectedCard]?.tasks[index]
+    if (task) this.openNotePaper(index)
+    else this.openKeyboard(index)
+  }
+
+  private openNotePaper(index: number): void {
+    this.noteTaskIndex = index
+    this.refreshNotePaper()
+    if (this.notePaper) this.notePaper.enabled = true
+  }
+
+  private closeNotePaper(): void {
+    if (this.notePaper) this.notePaper.enabled = false
+  }
+
+  private refreshNotePaper(): void {
+    const task = this.cards[this.selectedCard]?.tasks[this.noteTaskIndex]
+    if (!task) { this.closeNotePaper(); return }
+    if (this.noteTitle) this.noteTitle.text = this.short(task.title)
+    if (this.noteBody) this.noteBody.text = task.note.length > 0 ? task.note : "Tocá acá y anotá los pasos\ncomo en un papelito…"
+    if (this.noteSteps) this.noteSteps.text = task.aiSteps.length > 0 ? task.aiSteps.map((step, i) => `${i + 1}. ${step}`).join("\n") : ""
+    if (this.noteEstimate) this.noteEstimate.text = `⏱ ${task.durationMinutes} min`
+  }
+
+  private openNoteKeyboard(): void {
+    require("LensStudio:TextInputModule")
+    let value = this.cards[this.selectedCard]?.tasks[this.noteTaskIndex]?.note ?? ""
+    const options = new TextInputSystem.KeyboardOptions()
+    options.enablePreview = true
+    options.keyboardType = TextInputSystem.KeyboardType.Text
+    options.returnKeyType = TextInputSystem.ReturnKeyType.Done
+    options.initialText = value
+    options.onTextChanged = (text: string) => { value = text }
+    options.onReturnKeyPressed = () => { this.noteEvent.invoke({taskIndex: this.noteTaskIndex, text: value}); global.textInputSystem.dismissKeyboard() }
+    options.onError = (code: number, description: string) => print(`[Keyboard] ${code}: ${description}`)
+    global.textInputSystem.requestKeyboard(options)
   }
 
   private renderTask(row: number, task?: FocusTaskState): void {
@@ -168,23 +244,35 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.tint(this.taskPlates[row], task.status === "running" ? RUNNING_ROW_COLOR : actualIndex === this.selectedTask ? SELECTED_ROW_COLOR : CONTROL_COLOR)
   }
 
+  setCarouselDrag(progress: number): void {
+    this.dragShift = Math.max(-1.2, Math.min(1.2, progress))
+    this.updateCarouselTargets()
+  }
+
   private updateCarouselTargets(): void {
     const count = this.cardRoots.length
+    // El arrastre corre todo el carrusel de forma continua; al soltar, el snap
+    // cambia selectedCard y las cards ya están casi en su lugar (sin salto).
+    const shiftX = this.dragShift * 34
+    const centerBlend = Math.min(1, Math.abs(this.dragShift))
     for (let index = 0; index < count; index++) {
       let diff = (index - this.selectedCard + count) % count
       if (diff > count / 2) diff -= count
       const abs = Math.abs(diff)
       this.cardRoots[index].enabled = abs <= 2
       if (abs === 0) {
-        this.targets[index] = new vec3(0, 0, 0)
-        this.targetScales[index] = vec3.one()
+        this.targets[index] = new vec3(shiftX, 1.5 * centerBlend, -13 * centerBlend)
+        const scale = 1 - 0.24 * centerBlend
+        this.targetScales[index] = new vec3(scale, scale, scale)
         this.cardRoots[index].getTransform().setLocalRotation(quat.quatIdentity())
       } else if (abs === 1) {
-        this.targets[index] = new vec3(diff * 34, 1.5, -13)
-        this.targetScales[index] = new vec3(0.76, 0.76, 0.76)
-        this.cardRoots[index].getTransform().setLocalRotation(quat.angleAxis(-diff * 0.16, vec3.up()))
+        const towardCenter = Math.sign(-diff) === Math.sign(this.dragShift) ? centerBlend : 0
+        this.targets[index] = new vec3(diff * 34 + shiftX, 1.5 * (1 - towardCenter), -13 * (1 - towardCenter))
+        const scale = 0.76 + 0.24 * towardCenter
+        this.targetScales[index] = new vec3(scale, scale, scale)
+        this.cardRoots[index].getTransform().setLocalRotation(quat.angleAxis(-diff * 0.16 * (1 - towardCenter), vec3.up()))
       } else {
-        this.targets[index] = new vec3(diff * 29, 2.5, -26)
+        this.targets[index] = new vec3(diff * 29 + shiftX, 2.5, -26)
         this.targetScales[index] = new vec3(0.52, 0.52, 0.52)
         this.cardRoots[index].getTransform().setLocalRotation(quat.angleAxis(-diff * 0.22, vec3.up()))
       }
