@@ -14,6 +14,12 @@ export interface FocusCardState {
   tasks: FocusTaskState[]
 }
 
+export interface SavedOrganizerState {
+  version: number
+  selectedCard: number
+  cards: {category: string; tasks: FocusTaskState[]}[]
+}
+
 export class FocusOrganizerState {
   private readonly cards: FocusCardState[]
   private selectedCardIndex = 0
@@ -136,6 +142,49 @@ export class FocusOrganizerState {
       }
     }
     return null
+  }
+
+  serialize(): SavedOrganizerState {
+    return {
+      version: 1,
+      selectedCard: this.selectedCardIndex,
+      cards: this.cards.map((card) => ({category: card.category, tasks: card.tasks.map((task) => ({...task}))})),
+    }
+  }
+
+  restore(saved: SavedOrganizerState): boolean {
+    if (!saved || saved.version !== 1 || !Array.isArray(saved.cards) || saved.cards.length !== this.cards.length) return false
+    for (let index = 0; index < this.cards.length; index++) {
+      const tasks = saved.cards[index]?.tasks
+      if (!Array.isArray(tasks)) return false
+      this.cards[index].tasks = tasks
+        .filter((task) => task && typeof task.title === "string" && task.title.length > 0)
+        .map((task) => ({
+          title: task.title,
+          durationMinutes: this.clampNumber(task.durationMinutes, 5, 90, 15),
+          remainingSeconds: this.clampNumber(task.remainingSeconds, 0, 90 * 60, 900),
+          priority: this.clampNumber(task.priority, 1, 99, 1),
+          // Una tarea que quedó corriendo al cerrar la lente vuelve pausada:
+          // retomar el foco es una decisión del usuario, no del sistema.
+          status: this.sanitizeStatus(task.status),
+          focusElapsedSeconds: this.clampNumber(task.focusElapsedSeconds, 0, 24 * 3600, 0),
+        }))
+      this.refreshPriorities(this.cards[index].tasks)
+    }
+    this.selectedCardIndex = this.clampNumber(saved.selectedCard, 0, this.cards.length - 1, 0)
+    this.selectedTaskIndex = 0
+    return true
+  }
+
+  private sanitizeStatus(status: unknown): TaskStatus {
+    if (status === "running" || status === "paused") return "paused"
+    if (status === "done" || status === "skipped" || status === "idle") return status
+    return "idle"
+  }
+
+  private clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+    const num = typeof value === "number" && isFinite(value) ? value : fallback
+    return Math.max(min, Math.min(max, num))
   }
 
   private pauseEveryTask(): void {

@@ -1,7 +1,16 @@
 import {FocusCarouselSwipe} from "./FocusCarouselSwipe"
 import {FocusOrganizerCoach} from "./FocusOrganizerCoach"
 import {FocusOrganizerPanelUI} from "./FocusOrganizerPanelUI"
-import {FocusOrganizerState, FocusTaskState} from "./FocusOrganizerState"
+import {FocusOrganizerState, FocusTaskState, SavedOrganizerState} from "./FocusOrganizerState"
+import {loadJSON, saveJSON} from "./FocusPersist"
+
+const KEY_STATE = "focus_organizer_v1"
+const RUNNING_SAVE_INTERVAL = 10
+
+interface SavedPayload {
+  reminderMinutes: number
+  organizer: SavedOrganizerState
+}
 
 const FOCUS_TAP = requireAsset("../GeneratedSFX/FocusTap.wav") as AudioTrackAsset
 const TASK_DONE = requireAsset("../GeneratedSFX/TaskDone.wav") as AudioTrackAsset
@@ -21,6 +30,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
   private lastSecond = -1
   private reminderKey = ""
   private reminderBucket = 0
+  private sinceLastSave = 0
 
   onAwake(): void {
     this.swipe = this.sceneObject.createComponent(FocusCarouselSwipe.getTypeName()) as FocusCarouselSwipe
@@ -30,16 +40,21 @@ export class FocusOrganizerMain extends BaseScriptComponent {
 
   private onStart(): void {
     if (!this.panel) { console.error("[FocusOrganizerMain] panel no conectado"); return }
+    const saved = loadJSON<SavedPayload>(KEY_STATE)
+    if (saved) {
+      if (this.state.restore(saved.organizer)) print("[FocusOrganizer] estado restaurado de la sesión anterior")
+      if (saved.reminderMinutes === 0 || saved.reminderMinutes === 5 || saved.reminderMinutes === 10) this.reminderMinutes = saved.reminderMinutes
+    }
     this.swipe.setIndexDragTarget(this.panel.sceneObject)
     this.tapAudio = this.createSfx("FocusTapAudio", FOCUS_TAP); this.doneAudio = this.createSfx("TaskDoneAudio", TASK_DONE)
     this.reminderAudio = this.createSfx("FocusReminderAudio", FOCUS_REMINDER)
     this.swipe.onSwipe.add((direction) => { this.state.moveCard(direction); this.play(this.tapAudio); this.panel.setCoach("Elegí una tarea de esta card"); this.render() })
     this.swipe.onScroll.add((direction) => { this.panel.scrollTasks(direction); this.play(this.tapAudio) })
-    this.panel.onTaskEdited.add(({taskIndex, text}) => { this.state.selectTask(taskIndex); this.state.upsertTask(taskIndex, text); this.render() })
-    this.panel.onMovePriority.add(({taskIndex, direction}) => { this.state.moveTask(taskIndex, direction); this.play(this.tapAudio); this.render() })
+    this.panel.onTaskEdited.add(({taskIndex, text}) => { this.state.selectTask(taskIndex); this.state.upsertTask(taskIndex, text); this.render(); this.saveState() })
+    this.panel.onMovePriority.add(({taskIndex, direction}) => { this.state.moveTask(taskIndex, direction); this.play(this.tapAudio); this.render(); this.saveState() })
     this.panel.onReminderCycle.add(() => this.cycleReminder())
-    this.panel.onTimeDelta.add(({taskIndex, delta}) => { this.state.selectTask(taskIndex); this.state.adjustMinutes(delta); this.render() })
-    this.panel.onPlay.add((index) => { const running = this.state.toggleTask(index); this.syncReminderTracking(); this.play(this.tapAudio); this.panel.setCoach(running ? "Una tarea. Un bloque. Podés pausar." : "Pausa sin culpa."); this.render() })
+    this.panel.onTimeDelta.add(({taskIndex, delta}) => { this.state.selectTask(taskIndex); this.state.adjustMinutes(delta); this.render(); this.saveState() })
+    this.panel.onPlay.add((index) => { const running = this.state.toggleTask(index); this.syncReminderTracking(); this.play(this.tapAudio); this.panel.setCoach(running ? "Una tarea. Un bloque. Podés pausar." : "Pausa sin culpa."); this.render(); this.saveState() })
     this.panel.onSkip.add((index) => this.skip(index))
     this.panel.onDone.add((index) => this.complete(index))
     this.reminderMinutes = this.reminderMinutes === 10 ? 10 : this.reminderMinutes === 0 ? 0 : 5
@@ -54,8 +69,12 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     const second = Math.ceil(running?.task.remainingSeconds ?? this.state.activeTask?.remainingSeconds ?? 0)
     if (second !== this.lastSecond) this.render()
     this.checkReminder(running)
+    if (running) {
+      this.sinceLastSave += getDeltaTime()
+      if (this.sinceLastSave >= RUNNING_SAVE_INTERVAL) this.saveState()
+    }
     if (delayed) {
-      this.state.selectCard(delayed.cardIndex); this.state.selectTask(delayed.taskIndex); this.render()
+      this.state.selectCard(delayed.cardIndex); this.state.selectTask(delayed.taskIndex); this.render(); this.saveState()
       const task = this.state.activeTask
       if (task) this.coach.guideDelay(this.state.activeCard.category, task).then((message) => this.panel.setCoach(message))
     }
@@ -64,14 +83,14 @@ export class FocusOrganizerMain extends BaseScriptComponent {
   private skip(index: number): void {
     const category = this.state.activeCard.category
     const task = this.state.skipTask(index)
-    this.play(this.tapAudio); this.render(); this.panel.setCoach("Pasada. Elegí la siguiente sin culpa.")
+    this.play(this.tapAudio); this.render(); this.saveState(); this.panel.setCoach("Pasada. Elegí la siguiente sin culpa.")
     if (task) this.coach.guideSkip(category, task).then((message) => this.panel.setCoach(message))
   }
 
   private complete(index: number): void {
     const category = this.state.activeCard.category
     const task = this.state.completeTask(index)
-    this.play(this.doneAudio); this.render(); this.panel.setCoach("Hecho. Ya cuenta.")
+    this.play(this.doneAudio); this.render(); this.saveState(); this.panel.setCoach("Hecho. Ya cuenta.")
     if (task) this.coach.celebrate(category, task).then((message) => this.panel.setCoach(message))
   }
 
@@ -79,6 +98,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     this.reminderMinutes = this.reminderMinutes === 5 ? 10 : this.reminderMinutes === 10 ? 0 : 5
     this.panel.setReminderLabel(this.reminderMinutes)
     this.syncReminderTracking()
+    this.saveState()
     this.play(this.reminderAudio)
     this.panel.setCoach(this.reminderMinutes > 0 ? `Te recordaré tu tarea cada ${this.reminderMinutes} minutos.` : "Recordatorio sonoro desactivado.")
     print(`[FocusReminder] intervalo: ${this.reminderMinutes > 0 ? this.reminderMinutes + " min" : "off"}`)
@@ -104,6 +124,11 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     const elapsed = Math.round(running.task.focusElapsedSeconds / 60)
     this.panel.setCoach(`Seguís con: ${running.task.title}. Van ${elapsed} minutos.`)
     print(`[FocusReminder] ${running.task.title} · ${elapsed} min`)
+  }
+
+  private saveState(): void {
+    this.sinceLastSave = 0
+    saveJSON(KEY_STATE, {reminderMinutes: this.reminderMinutes, organizer: this.state.serialize()} as SavedPayload)
   }
 
   private render(): void {
