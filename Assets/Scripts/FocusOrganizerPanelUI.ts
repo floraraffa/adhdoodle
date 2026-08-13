@@ -3,6 +3,7 @@ import WorldCameraFinderProvider from "SpectaclesInteractionKit.lspkg/Providers/
 import Event, {PublicApi} from "SpectaclesInteractionKit.lspkg/Utils/Event"
 import {BackPlate} from "SpectaclesUIKit.lspkg/Scripts/BackPlate"
 import {FocusCardState, FocusTaskState} from "./FocusOrganizerState"
+import {STR} from "./Strings"
 
 const CARD_WIDTH = 44
 const CARD_HEIGHT = 46
@@ -110,7 +111,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     if (taskChanged && selectedTask >= this.scrollOffset + 4) this.scrollOffset = selectedTask - 3
     for (let index = 0; index < cards.length; index++) {
       const done = cards[index].tasks.filter((task) => task.status === "done").length
-      this.cardSummaries[index].text = `${cards[index].tasks.length} tareas · ${done} hechas`
+      this.cardSummaries[index].text = STR.taskCount(cards[index].tasks.length, done)
       this.cardPreviews[index].enabled = index !== selectedCard
       this.cardPreviews[index].text = this.previewTasks(cards[index])
     }
@@ -127,7 +128,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   }
 
   setCoach(message: string): void { if (this.coachText) this.coachText.text = message }
-  setReminderLabel(minutes: number): void { if (this.reminderLabel) this.reminderLabel.text = minutes > 0 ? `🔔 ${minutes}m` : "🔕 off" }
+  setReminderLabel(minutes: number): void { if (this.reminderLabel) this.reminderLabel.text = minutes > 0 ? STR.bellOn(minutes) : STR.bellOff }
 
   scrollTasks(direction: number): void {
     const count = this.cards[this.selectedCard]?.tasks.length ?? 0
@@ -144,8 +145,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     plate.style = "simple"
     this.tint(plate, COLORS[index])
     this.makeDecorative(plate)
-    this.addText(root, ["Trabajo", "Casa", "Relax", "Comida + bienestar", "Amigos", "Hiperfoco"][index], new vec3(0, 19.2, 0.7), 58, 39, 3)
-    const summary = this.addText(root, "0 tareas", new vec3(0, 15.7, 0.7), 31, 36, 2)
+    this.addText(root, STR.categories[index], new vec3(0, 19.2, 0.7), 58, 39, 3)
+    const summary = this.addText(root, STR.taskCount(0, 0), new vec3(0, 15.7, 0.7), 31, 36, 2)
     const preview = this.addText(root, "", new vec3(0, 0.5, 0.7), 36, 34, 23)
     this.cardRoots.push(root)
     this.cardSummaries.push(summary)
@@ -159,26 +160,26 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     for (let row = 0; row < 4; row++) {
       const rowRoot = this.obj(this.detailRoot, `Row-${row}`, new vec3(0, ROW_Y[row], 1))
       this.rowRoots.push(rowRoot)
-      this.taskLabels[row] = this.addSurfaceButton(rowRoot, `Task-${row}`, "+ Agregar tarea", new vec3(-9, 0, 0), 20, 4.8, () => this.onRowPressed(this.visibleIndex(row)), (plate) => { this.taskPlates[row] = plate })
+      this.taskLabels[row] = this.addSurfaceButton(rowRoot, `Task-${row}`, STR.addTask, new vec3(-9, 0, 0), 20, 4.8, () => this.onRowPressed(this.visibleIndex(row)), (plate) => { this.taskPlates[row] = plate })
       this.priorityLabels[row] = this.addSurfaceButton(rowRoot, `Priority-${row}`, "P2", new vec3(3.2, 0, 0), 3.8, 4.2, () => { this.selectedTask = this.visibleIndex(row) })
       this.playLabels[row] = this.addSurfaceButton(rowRoot, `Play-${row}`, "▶", new vec3(7.3, 0, 0), 3.8, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.playEvent.invoke(i) })
-      this.addSurfaceButton(rowRoot, `Skip-${row}`, "Pasar", new vec3(12.3, 0, 0), 5.8, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.skipEvent.invoke(i) })
+      this.addSurfaceButton(rowRoot, `Skip-${row}`, STR.skip, new vec3(12.3, 0, 0), 5.8, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.skipEvent.invoke(i) })
       this.addSurfaceButton(rowRoot, `Done-${row}`, "✓", new vec3(17.5, 0, 0), 4.2, 4.2, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.doneEvent.invoke(i) })
     }
     this.controlsRoot = this.obj(this.detailRoot, "Controls", new vec3(0, 0, 1))
-    this.addSurfaceButton(this.controlsRoot, "NewTask", "+ tarea", new vec3(-17, -15, 0), 7.5, 3.5, () => this.openFirstEmpty())
-    this.addSurfaceButton(this.controlsRoot, "PriorityUp", "↑ prioridad", new vec3(-9, -15, 0), 7.2, 3.5, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: -1}))
-    this.addSurfaceButton(this.controlsRoot, "PriorityDown", "↓ prioridad", new vec3(-1.2, -15, 0), 7.2, 3.5, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: 1}))
-    this.addSurfaceButton(this.controlsRoot, "MinusTime", "−5m", new vec3(5.2, -15, 0), 5, 3.5, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: -5}))
-    this.addSurfaceButton(this.controlsRoot, "PlusTime", "+5m", new vec3(10.7, -15, 0), 5, 3.5, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: 5}))
-    this.reminderLabel = this.addSurfaceButton(this.controlsRoot, "Reminder", "🔔 5m", new vec3(17.3, -15, 0), 7, 3.5, () => this.reminderEvent.invoke())
-    this.addSurfaceButton(this.controlsRoot, "ScrollUp", "↑ lista", new vec3(-8, -18.5, 0), 6.5, 2.6, () => this.scrollTasks(-1))
-    this.addText(this.controlsRoot, "índice ↔ cards", new vec3(0, -18.5, 0), 26, 8.5, 1.5)
-    this.addSurfaceButton(this.controlsRoot, "ScrollDown", "↓ lista", new vec3(8, -18.5, 0), 6.5, 2.6, () => this.scrollTasks(1))
-    this.coachText = this.addText(this.detailRoot, "Elegí una tarea y presioná ▶", new vec3(0, -20.7, 1), 29, 38, 2)
+    this.addSurfaceButton(this.controlsRoot, "NewTask", STR.newTaskButton, new vec3(-17, -15, 0), 7.5, 3.5, () => this.openFirstEmpty())
+    this.addSurfaceButton(this.controlsRoot, "PriorityUp", STR.priorityUp, new vec3(-9, -15, 0), 7.2, 3.5, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: -1}))
+    this.addSurfaceButton(this.controlsRoot, "PriorityDown", STR.priorityDown, new vec3(-1.2, -15, 0), 7.2, 3.5, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: 1}))
+    this.addSurfaceButton(this.controlsRoot, "MinusTime", STR.minus5, new vec3(5.2, -15, 0), 5, 3.5, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: -5}))
+    this.addSurfaceButton(this.controlsRoot, "PlusTime", STR.plus5, new vec3(10.7, -15, 0), 5, 3.5, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: 5}))
+    this.reminderLabel = this.addSurfaceButton(this.controlsRoot, "Reminder", STR.bellOn(5), new vec3(17.3, -15, 0), 7, 3.5, () => this.reminderEvent.invoke())
+    this.addSurfaceButton(this.controlsRoot, "ScrollUp", STR.listUp, new vec3(-8, -18.5, 0), 6.5, 2.6, () => this.scrollTasks(-1))
+    this.addText(this.controlsRoot, STR.indexHint, new vec3(0, -18.5, 0), 26, 8.5, 1.5)
+    this.addSurfaceButton(this.controlsRoot, "ScrollDown", STR.listDown, new vec3(8, -18.5, 0), 6.5, 2.6, () => this.scrollTasks(1))
+    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(0, -20.7, 1), 29, 38, 2)
     this.checkInRoot = this.obj(this.detailRoot, "CheckIn", new vec3(0, -12, 3))
-    this.addSurfaceButton(this.checkInRoot, "CheckFocused", "Sigo ✓", new vec3(-5.6, 0, 0), 8, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(false) })
-    this.addSurfaceButton(this.checkInRoot, "CheckDrifted", "Me distraje ↩", new vec3(5.6, 0, 0), 10.5, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(true) })
+    this.addSurfaceButton(this.checkInRoot, "CheckFocused", STR.checkFocused, new vec3(-5.6, 0, 0), 8, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(false) })
+    this.addSurfaceButton(this.checkInRoot, "CheckDrifted", STR.checkDrifted, new vec3(5.6, 0, 0), 10.5, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(true) })
     this.checkInRoot.enabled = false
   }
 
@@ -276,7 +277,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.addSurfaceButton(this.notePaper, "NoteMinus", "−", new vec3(-8.7, -8.2, 0.7), 2.6, 2.8, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: -1}))
     this.noteEstimate = this.addText(this.notePaper, "⏱ 15m", new vec3(-4.6, -8.2, 0.7), 24, 5.2, 2.8)
     this.addSurfaceButton(this.notePaper, "NotePlus", "+", new vec3(-0.5, -8.2, 0.7), 2.6, 2.8, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: 1}))
-    this.addSurfaceButton(this.notePaper, "NoteEstimate", "✨ estimar", new vec3(5.9, -8.2, 0.7), 8.6, 2.8, () => this.estimateEvent.invoke(this.noteTaskIndex))
+    this.addSurfaceButton(this.notePaper, "NoteEstimate", STR.estimateButton, new vec3(5.9, -8.2, 0.7), 8.6, 2.8, () => this.estimateEvent.invoke(this.noteTaskIndex))
     this.notePaper.enabled = false
   }
 
@@ -301,7 +302,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     const task = this.cards[this.selectedCard]?.tasks[this.noteTaskIndex]
     if (!task) { this.closeNotePaper(); return }
     if (this.noteTitle) this.noteTitle.text = task.title.length > 16 ? task.title.substring(0, 15) + "…" : task.title
-    if (this.noteBody) this.noteBody.text = task.note.length > 0 ? task.note : "Tocá y anotá\ntus pasos…"
+    if (this.noteBody) this.noteBody.text = task.note.length > 0 ? task.note : STR.notePlaceholder
     if (this.noteSteps) this.noteSteps.text = task.aiSteps.map((step) => `· ${step}`).join("\n")
     if (this.noteEstimate) this.noteEstimate.text = `⏱ ${task.durationMinutes}m`
   }
@@ -322,7 +323,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
 
   private renderTask(row: number, task?: FocusTaskState): void {
     if (!task) {
-      this.taskLabels[row].text = "+ Agregar tarea"
+      this.taskLabels[row].text = STR.addTask
       this.priorityLabels[row].text = "—"
       this.playLabels[row].text = "▶"
       this.tint(this.taskPlates[row], CONTROL_COLOR)
@@ -466,12 +467,12 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private visibleIndex(row: number): number { return this.scrollOffset + row }
   // Las tareas se ven desde el carrusel: lista tipo checklist en las cards vecinas.
   private previewTasks(card: FocusCardState): string {
-    if (card.tasks.length === 0) return "+ Agregar primera tarea"
+    if (card.tasks.length === 0) return STR.addFirstTask
     const lines = card.tasks.slice(0, 6).map((task) => {
       const mark = task.status === "done" ? "✓" : task.status === "running" ? "▶" : task.status === "skipped" ? "↷" : "○"
       return `${mark}  ${this.short(task.title)}`
     })
-    if (card.tasks.length > 6) lines.push(`+ ${card.tasks.length - 6} más`)
+    if (card.tasks.length > 6) lines.push(STR.more(card.tasks.length - 6))
     return lines.join("\n")
   }
   private obj(parent: SceneObject, name: string, position: vec3): SceneObject {

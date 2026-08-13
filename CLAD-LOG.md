@@ -39,3 +39,9 @@ Three features designed around the ADHD reality that distraction is fought with 
 - **Tunnel mode** — when a task is running on the card you're looking at, neighbor cards, non-running rows and the whole control strip disappear; only the running task, its controls and the coach remain. One thing looking at you instead of six.
 - **Drift check-in** — the periodic reminder now asks "¿Seguís con [tarea]?" with two buttons: "Sigo ✓" (encouragement) and "Me distraje ↩" (no guilt: re-offers the smallest micro-step, silently counts drifts per task — data for future insights).
 - **Debugging saga worth recording:** the chip was invisible through five hypotheses (occlusion by distance, camera parenting, canvas layering, back-face culling). The real culprit, found by logging camera pose vs chip position: **Lens Studio's `transform.forward` points to local +Z — the BACK of the view**. The chip had been placed 24 cm behind the user's head the whole time. One sign flip fixed it. Verified visually at multiple camera distances afterwards.
+
+## Day 1, session 4 — Aug 13, 2026 (automatic multi-language)
+
+- All user-facing strings extracted into `Strings.ts` with full English and Spanish tables: UI labels, coach messages, demo tasks, category names, and **the AI coach prompts** (system + user prompts per language, so the LLM answers in the user's language too).
+- **Language auto-detection**: the lens reads the device's system language (`deviceInfoSystem.getSystemLanguage()`, guarded with a fallback) and picks the table — Spanish speakers get Spanish, everyone else gets English. A `FORCE_LANG` override exists for demo recordings. Adding a language = adding one table.
+- Verified in preview: full UI rendering in English (cards, rows, controls, coach, check-in, post-it).

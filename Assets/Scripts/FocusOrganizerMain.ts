@@ -3,6 +3,7 @@ import {FocusOrganizerCoach} from "./FocusOrganizerCoach"
 import {FocusOrganizerPanelUI} from "./FocusOrganizerPanelUI"
 import {FocusOrganizerState, FocusTaskState, SavedOrganizerState} from "./FocusOrganizerState"
 import {loadJSON, saveJSON} from "./FocusPersist"
+import {STR} from "./Strings"
 
 const KEY_STATE = "focus_organizer_v1"
 const RUNNING_SAVE_INTERVAL = 10
@@ -48,7 +49,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     this.swipe.setIndexDragTarget(this.panel.sceneObject)
     this.tapAudio = this.createSfx("FocusTapAudio", FOCUS_TAP); this.doneAudio = this.createSfx("TaskDoneAudio", TASK_DONE)
     this.reminderAudio = this.createSfx("FocusReminderAudio", FOCUS_REMINDER)
-    this.swipe.onSwipe.add((direction) => { this.state.moveCard(direction); this.play(this.tapAudio); this.panel.setCoach("Elegí una tarea de esta card"); this.render() })
+    this.swipe.onSwipe.add((direction) => { this.state.moveCard(direction); this.play(this.tapAudio); this.panel.setCoach(STR.coachCard); this.render() })
     this.swipe.onScroll.add((direction) => { this.panel.scrollTasks(direction); this.play(this.tapAudio) })
     this.swipe.onDragProgress.add((progress) => this.panel.setCarouselDrag(progress))
     this.panel.onNoteEdited.add(({taskIndex, text}) => { this.state.setNote(taskIndex, text); this.render(); this.saveState() })
@@ -58,7 +59,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     this.panel.onMovePriority.add(({taskIndex, direction}) => { this.state.moveTask(taskIndex, direction); this.play(this.tapAudio); this.render(); this.saveState() })
     this.panel.onReminderCycle.add(() => this.cycleReminder())
     this.panel.onTimeDelta.add(({taskIndex, delta}) => { this.state.selectTask(taskIndex); this.state.adjustMinutes(delta); this.render(); this.saveState() })
-    this.panel.onPlay.add((index) => { const running = this.state.toggleTask(index); this.syncReminderTracking(); this.panel.hideCheckIn(); this.play(this.tapAudio); this.panel.setCoach(running ? "Una tarea. Un bloque. Podés pausar." : "Pausa sin culpa."); this.render(); this.saveState() })
+    this.panel.onPlay.add((index) => { const running = this.state.toggleTask(index); this.syncReminderTracking(); this.panel.hideCheckIn(); this.play(this.tapAudio); this.panel.setCoach(running ? STR.coachRunning : STR.coachPaused); this.render(); this.saveState() })
     this.panel.onSkip.add((index) => this.skip(index))
     this.panel.onDone.add((index) => this.complete(index))
     this.reminderMinutes = this.reminderMinutes === 10 ? 10 : this.reminderMinutes === 0 ? 0 : 5
@@ -93,7 +94,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     const category = this.state.activeCard.category
     const task = this.state.skipTask(index)
     this.panel.hideCheckIn()
-    this.play(this.tapAudio); this.render(); this.saveState(); this.panel.setCoach("Pasada. Elegí la siguiente sin culpa.")
+    this.play(this.tapAudio); this.render(); this.saveState(); this.panel.setCoach(STR.coachSkipped)
     if (task) this.coach.guideSkip(category, task).then((message) => this.panel.setCoach(message))
   }
 
@@ -101,7 +102,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     const category = this.state.activeCard.category
     const task = this.state.completeTask(index)
     this.panel.hideCheckIn()
-    this.play(this.doneAudio); this.render(); this.saveState(); this.panel.setCoach("Hecho. Ya cuenta.")
+    this.play(this.doneAudio); this.render(); this.saveState(); this.panel.setCoach(STR.coachDone)
     if (task) this.coach.celebrate(category, task).then((message) => this.panel.setCoach(message))
   }
 
@@ -109,7 +110,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     const task = this.state.activeCard.tasks[taskIndex]
     if (!task) return
     print(`[FocusCoach] estimando "${task.title}"…`)
-    this.panel.setCoach("Pensando una estimación amable…")
+    this.panel.setCoach(STR.estimateThinking)
     this.coach.estimateTask(this.state.activeCard.category, task).then((estimate) => {
       this.state.selectTask(taskIndex)
       this.state.applyEstimate(taskIndex, estimate.minutes, estimate.steps)
@@ -126,7 +127,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     this.syncReminderTracking()
     this.saveState()
     this.play(this.reminderAudio)
-    this.panel.setCoach(this.reminderMinutes > 0 ? `Te recordaré tu tarea cada ${this.reminderMinutes} minutos.` : "Recordatorio sonoro desactivado.")
+    this.panel.setCoach(this.reminderMinutes > 0 ? STR.reminderSet(this.reminderMinutes) : STR.reminderOff)
     print(`[FocusReminder] intervalo: ${this.reminderMinutes > 0 ? this.reminderMinutes + " min" : "off"}`)
   }
 
@@ -148,7 +149,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     this.reminderBucket = bucket
     this.play(this.reminderAudio)
     const elapsed = Math.round(running.task.focusElapsedSeconds / 60)
-    this.panel.setCoach(`¿Seguís con ${running.task.title}?`)
+    this.panel.setCoach(STR.checkQuestion(running.task.title))
     this.panel.showCheckIn()
     print(`[FocusReminder] check-in a los ${elapsed} min de "${running.task.title}"`)
   }
@@ -169,17 +170,17 @@ export class FocusOrganizerMain extends BaseScriptComponent {
   private handleCheckIn(drifted: boolean): void {
     const running = this.state.runningContext
     if (!drifted) {
-      this.panel.setCoach("Seguís ahí. Buen bloque.")
+      this.panel.setCoach(STR.checkKeepGoing)
       return
     }
     if (running) {
       const drifts = this.state.registerDrift(running.cardIndex, running.taskIndex)
       const step = running.task.aiSteps[0]
-      this.panel.setCoach(step ? `Sin culpa. Volvé con algo chico: ${step}` : "Sin culpa. Volvé con el paso más chico que puedas.")
+      this.panel.setCoach(step ? STR.comeBackStep(step) : STR.comeBackGeneric)
       this.saveState()
       print(`[FocusCheckIn] deriva registrada (${drifts}) en "${running.task.title}"`)
     } else {
-      this.panel.setCoach("Sin culpa. Elegí algo chico para arrancar.")
+      this.panel.setCoach(STR.comeBackIdle)
     }
   }
 

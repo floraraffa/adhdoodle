@@ -1,3 +1,5 @@
+import {STR} from "./Strings"
+
 export type TaskStatus = "idle" | "running" | "paused" | "done" | "skipped"
 
 // Un solo tiempo total: los pasos no llevan minutos ("(aprox. 2 minutos)", "5 min", etc.)
@@ -38,21 +40,7 @@ export class FocusOrganizerState {
   private selectedTaskIndex = 0
 
   constructor() {
-    this.cards = [
-      this.card("Trabajo", [
-        "Elegir el primer paso",
-        "Revisar mensajes importantes",
-        "Preparar el borrador",
-        "Enviar una actualización",
-        "Agendar el seguimiento",
-        "Cerrar pestañas que distraen",
-      ]),
-      this.card("Casa", ["Ordenar una superficie", "Poner una lavadora"]),
-      this.card("Relax", ["Descansar sin pantalla"]),
-      this.card("Comida + bienestar", ["Tomar agua", "Preparar algo nutritivo"]),
-      this.card("Amigos", ["Escribir a alguien"]),
-      this.card("Hiperfoco", ["Definir un límite amable", "Pausa para estirar"]),
-    ]
+    this.cards = STR.categories.map((category, index) => this.card(category, STR.demoTasks[index] ?? []))
   }
 
   get allCards(): readonly FocusCardState[] { return this.cards }
@@ -85,7 +73,7 @@ export class FocusOrganizerState {
       this.activeCard.tasks[index].title = clean
       return
     }
-    while (this.activeCard.tasks.length < index) this.activeCard.tasks.push(this.task("Nueva tarea"))
+    while (this.activeCard.tasks.length < index) this.activeCard.tasks.push(this.task(STR.newTaskDefault))
     this.activeCard.tasks.push(this.task(clean))
     this.refreshPriorities(this.activeCard.tasks)
   }
