@@ -104,6 +104,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private readonly deleteEvent = new Event<number>()
 
   private cardRoots: SceneObject[] = []
+  private cardsLayer: SceneObject | null = null
   private cardSummaries: Text[] = []
   private cardPreviews: Text[] = []
   private targets: vec3[] = []
@@ -196,6 +197,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.sceneObject.getTransform().setLocalPosition(new vec3(0, authored.y, authored.z))
     this.sceneObject.createComponent("Component.Canvas")
     this.sceneObject.createComponent(Billboard.getTypeName())
+    this.cardsLayer = this.obj(this.sceneObject, "CardsLayer", vec3.zero())
     for (let index = 0; index < STR.categories.length; index++) this.createCard(index)
     this.createDetails()
     this.createNotePaper()
@@ -203,6 +205,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.createFocusView()
     this.createIntro()
     this.updateCarouselTargets()
+    this.bringActiveCardToFront()
     this.createEvent("OnStartEvent").bind(() => this.centerHorizontallyInView())
     this.createEvent("UpdateEvent").bind(() => this.animateCarousel())
   }
@@ -222,6 +225,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
       this.cardPreviews[index].enabled = index !== selectedCard
       this.cardPreviews[index].text = this.previewTasks(cards[index])
     }
+    if (cardChanged) this.bringActiveCardToFront()
     if (cardChanged && this.detailRoot) {
       this.detailRoot.setParent(this.cardRoots[selectedCard])
       this.detailRoot.getTransform().setLocalPosition(vec3.zero())
@@ -267,7 +271,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   // ——— La página del cuaderno ———
 
   private createCard(index: number): void {
-    const root = this.obj(this.sceneObject, `CarouselCard-${index}`, vec3.zero())
+    const root = this.obj(this.cardsLayer!, `CarouselCard-${index}`, vec3.zero())
     this.addImage(root, "Page", TEX_PAGES[index % TEX_PAGES.length], new vec3(0, 0, 0), PAGE_W, PAGE_H)
     // Título grande y "bold" (outline del mismo color), inclinado con la cinta.
     const title = this.addText(root, STR.categories[index], new vec3(-5.2, 20.1, 0.7), 72, 13.5, 4.4)
@@ -496,23 +500,31 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
 
   // Reproduce la pista actual UNA vez; al terminar avanza sola a la siguiente
   // (playlist continua, nunca la misma canción en loop).
+  private stopMusicComponent(): void {
+    if (!this.musicAudio) return
+    try { if (this.musicAudio.isPlaying()) this.musicAudio.stop(false) } catch (error) { print(`[Music] stop: ${error}`) }
+    try { this.musicAudio.destroy() } catch (error) { print(`[Music] destroy: ${error}`) }
+    this.musicAudio = null
+  }
+
   private startTrack(): void {
     const track = this.meditationTracks[this.musicIndex]
     if (!track) { this.musicPlaying = false; return }
-    if (!this.musicAudio) {
-      this.musicAudio = this.sceneObject.createComponent("Component.AudioComponent") as AudioComponent
-      this.musicAudio.volume = 0.5
-    }
-    this.musicAudio.audioTrack = track
-    this.musicAudio.play(1)
-    this.musicAudio.setOnFinish(() => {
+    // Un AudioComponent NUEVO por pista: cambiar audioTrack con audio sonando
+    // crasheaba el runtime nativo (el "next" tiraba la lente entera).
+    this.stopMusicComponent()
+    const audio = this.sceneObject.createComponent("Component.AudioComponent") as AudioComponent
+    audio.volume = 0.5
+    audio.audioTrack = track
+    audio.setOnFinish(() => {
       try {
-        if (!this.musicPlaying || this.meditationTracks.length === 0) return
+        if (!this.musicPlaying || this.musicAudio !== audio || this.meditationTracks.length === 0) return
         this.musicIndex = (this.musicIndex + 1) % this.meditationTracks.length
         this.startTrack()
-        this.refreshMusicPopup()
       } catch (error) { print(`[Music] error al avanzar: ${error}`) }
     })
+    this.musicAudio = audio
+    audio.play(1)
     this.refreshMusicPopup()
   }
 
@@ -877,6 +889,15 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   setCarouselDrag(progress: number): void {
     this.dragShift = Math.max(-1.2, Math.min(1.2, progress))
     this.updateCarouselTargets()
+  }
+
+  // La agenda grande SIEMPRE por delante: se re-apendea al final de su capa,
+  // que vive antes que los overlays (post-it, nube, tutorial) en la jerarquía.
+  private bringActiveCardToFront(): void {
+    const card = this.cardRoots[this.selectedCard]
+    if (!card || !this.cardsLayer) return
+    card.setParent(this.sceneObject)
+    card.setParent(this.cardsLayer)
   }
 
   private updateCarouselTargets(): void {
