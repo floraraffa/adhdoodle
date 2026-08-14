@@ -1,5 +1,6 @@
 import {Billboard} from "SpectaclesInteractionKit.lspkg/Components/Interaction/Billboard/Billboard"
 import {Interactable} from "SpectaclesInteractionKit.lspkg/Components/Interaction/Interactable/Interactable"
+import {InteractableManipulation} from "SpectaclesInteractionKit.lspkg/Components/Interaction/InteractableManipulation/InteractableManipulation"
 import WorldCameraFinderProvider from "SpectaclesInteractionKit.lspkg/Providers/CameraProvider/WorldCameraFinderProvider"
 import Event, {PublicApi} from "SpectaclesInteractionKit.lspkg/Utils/Event"
 import {BackPlate} from "SpectaclesUIKit.lspkg/Scripts/BackPlate"
@@ -48,6 +49,7 @@ const TEX_POSTIT = {
   del: requireAsset("../DesignAssets/postit-delete.png") as Texture,
   close: requireAsset("../DesignAssets/postit-close.png") as Texture,
   addStep: requireAsset("../DesignAssets/postit-add-step.png") as Texture,
+  fondo: requireAsset("../DesignAssets/postit-fondo.png") as Texture,
 }
 // Los Image creados en runtime no traen material: se clona el del UIKit.
 const IMAGE_MATERIAL = requireAsset("../../Packages/SpectaclesUIKit.lspkg/Materials/Image.mat") as Material
@@ -115,6 +117,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private timePopupMinutes: Text | null = null
   private scrollRoot: SceneObject | null = null
   private scrollThumb: SceneObject | null = null
+  private thumbDragging = false
   @input meditationTracks: AudioTrackAsset[] = []
   private musicPopup: SceneObject | null = null
   private musicLabel: Text | null = null
@@ -133,6 +136,9 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private noteSteps: Text | null = null
   private noteEstimate: Text | null = null
   private noteTimeRow: SceneObject | null = null
+  private noteAbout: Text | null = null
+  private noteBadgeImage: Image | null = null
+  private noteBadgeObject: SceneObject | null = null
   private rowRoots: SceneObject[] = []
   private controlsRoot: SceneObject | null = null
   private checkInRoot: SceneObject | null = null
@@ -244,8 +250,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     const root = this.obj(this.sceneObject, `CarouselCard-${index}`, vec3.zero())
     this.addImage(root, "Page", TEX_PAGES[index % TEX_PAGES.length], new vec3(0, 0, 0), PAGE_W, PAGE_H)
     // Título grande y "bold" (outline del mismo color), inclinado con la cinta.
-    const title = this.addText(root, STR.categories[index], new vec3(-5.2, 20.1, 0.7), 62, 12.5, 4)
-    this.tiltAndBold(title, 10)
+    const title = this.addText(root, STR.categories[index], new vec3(-5.2, 20.1, 0.7), 72, 13.5, 4.4)
+    this.tiltAndBold(title, 6)
     this.addText(root, STR.formatDate(), new vec3(-6.4, 16.35, 0.7), 25, 10.5, 2)
     const summary = this.addText(root, STR.taskCount(0, 0), new vec3(-6, 14.3, 0.7), 25, 13, 1.9)
     // La nube (la IA) con su globito, arriba a la derecha como en el diseño.
@@ -296,6 +302,11 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.addImage(this.scrollRoot, "Track", TEX_SCROLL_BAR, new vec3(0, 0, 0), 2.3)
     const thumb = this.addImage(this.scrollRoot, "Thumb", TEX_SCROLL_BTN, new vec3(0, 8, 0.3), 1.9)
     this.scrollThumb = thumb.object
+    // Pinch sobre el botón violeta para arrastrarlo por la barra.
+    this.makeInteractive(thumb.object, 3.2, 4.5, () => {})
+    const thumbManipulation = thumb.object.createComponent(InteractableManipulation.getTypeName()) as InteractableManipulation
+    thumbManipulation.onManipulationStart.add(() => { this.thumbDragging = true })
+    thumbManipulation.onManipulationEnd.add(() => { this.thumbDragging = false; this.updateScrollbar() })
     this.addHotspot(this.scrollRoot, "ScrollUpZone", new vec3(0, 8.6, 0.6), 3.2, 6.5, () => this.scrollTasks(-1))
     this.addHotspot(this.scrollRoot, "ScrollDownZone", new vec3(0, -8.6, 0.6), 3.2, 6.5, () => this.scrollTasks(1))
     this.scrollRoot.enabled = false
@@ -330,9 +341,9 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.reminderOverlay.getSceneObject().enabled = false
     // El coach habla desde el globito de la nube (arriba a la derecha),
     // con texto grande e inclinado acompañando al globo.
-    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.7, 20.4, 0.9), 18, 5.7, 4.4)
+    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.8, 20.5, 0.9), 15, 4.9, 3.2)
     this.coachText.horizontalOverflow = HorizontalOverflow.Wrap
-    this.tilt(this.coachText, 10)
+    this.tilt(this.coachText, 6)
     // Popup de tiempo: total manual + estimación con IA, para la tarea seleccionada.
     this.timePopup = this.obj(this.detailRoot, "TimePopup", new vec3(0, -6, 3))
     const timePlate = this.timePopup.createComponent(BackPlate.getTypeName()) as BackPlate
@@ -368,12 +379,32 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.checkInRoot.enabled = false
   }
 
+  // Mientras se arrastra el botón violeta: fijarlo a la barra y mapear a la lista.
+  private applyThumbDrag(): void {
+    if (!this.thumbDragging || !this.scrollThumb) return
+    const transform = this.scrollThumb.getTransform()
+    const local = transform.getLocalPosition()
+    const y = Math.max(-6.2, Math.min(6.2, local.y))
+    transform.setLocalPosition(new vec3(0, y, 0.3))
+    const count = this.cards[this.selectedCard]?.tasks.length ?? 0
+    if (count <= 4) return
+    const fraction = (6.2 - y) / 12.4
+    const offset = Math.round(fraction * (count - 4))
+    if (offset !== this.scrollOffset) {
+      this.scrollOffset = offset
+      const tasks = this.cards[this.selectedCard]?.tasks ?? []
+      for (let row = 0; row < 4; row++) this.renderTask(row, tasks[this.scrollOffset + row])
+      this.applyTunnel()
+    }
+  }
+
   private updateScrollbar(): void {
     if (!this.scrollRoot || !this.scrollThumb) return
     const count = this.cards[this.selectedCard]?.tasks.length ?? 0
     const visible = count > 4 && this.tunnelIndex === null
     this.scrollRoot.enabled = visible
     if (!visible) return
+    if (this.thumbDragging) return
     const fraction = Math.max(0, Math.min(1, this.scrollOffset / Math.max(1, count - 4)))
     // El botón viaja entre las flechas (de +6.2 a −6.2).
     this.scrollThumb.getTransform().setLocalPosition(new vec3(0, 6.2 - fraction * 12.4, 0.3))
@@ -491,11 +522,11 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.chipRoot = this.obj(this.sceneObject, "FocusChip", vec3.zero())
     this.addImage(this.chipRoot, "CloudChip", TEX_CLOUD, new vec3(0, 0, 0), 13)
     // Los textos van sobre el globito de la nube, grandes e inclinados con él.
-    this.chipTitle = this.addText(this.chipRoot, "", new vec3(-2.6, 2.3, 0.5), 15, 5, 2.4)
+    this.chipTitle = this.addText(this.chipRoot, "", new vec3(-2.4, 2.2, 0.5), 13, 4.4, 2.2)
     this.chipTitle.horizontalOverflow = HorizontalOverflow.Wrap
-    this.tilt(this.chipTitle, 10)
-    this.chipInfo = this.addText(this.chipRoot, "", new vec3(-2.7, 0.6, 0.5), 13, 5, 1.8)
-    this.tilt(this.chipInfo, 10)
+    this.tilt(this.chipTitle, 6)
+    this.chipInfo = this.addText(this.chipRoot, "", new vec3(-2.5, 0.8, 0.5), 12, 4.4, 1.6)
+    this.tilt(this.chipInfo, 6)
     this.chipRoot.enabled = false
   }
 
@@ -559,29 +590,31 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   // ——— Papelito de tarea: notas + estimación IA ———
 
   private createNotePaper(): void {
-    // Post-it: chico, cuadrado, apenas inclinado como pegado a mano sobre la card.
-    this.notePaper = this.obj(this.sceneObject, "NotePaper", new vec3(10, 5, 6))
-    this.notePaper.getTransform().setLocalRotation(quat.angleAxis(-0.05, new vec3(0, 0, 1)))
-    const plate = this.notePaper.createComponent(BackPlate.getTypeName()) as BackPlate
-    plate.size = new vec2(23, 24)
-    plate.style = "simple"
-    this.tint(plate, POSTIT_COLOR)
-    this.makeDecorative(plate)
-    this.noteTitle = this.addText(this.notePaper, "", new vec3(-1.5, 9.3, 0.7), 27, 15, 2.6)
-    const closeBtn = this.addImage(this.notePaper, "NoteClose", TEX_POSTIT.close, new vec3(9.3, 9.4, 0.7), 2.4)
-    this.makeInteractive(closeBtn.object, 3, 3, () => this.closeNotePaper())
-    this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(0, 4, 0.7), 20, 6.6, () => this.openNoteKeyboard())
-    this.noteSteps = this.addText(this.notePaper, "", new vec3(0, -1.6, 0.7), 18, 20, 4.6)
-    const addStep = this.addImage(this.notePaper, "AddStep", TEX_POSTIT.addStep, new vec3(0, -4.9, 0.7), 8.2)
+    // Post-it con el fondo ilustrado de Flor (washi, ✕, nube "You got this!").
+    this.notePaper = this.obj(this.sceneObject, "NotePaper", new vec3(10, 4, 6))
+    this.addImage(this.notePaper, "Fondo", TEX_POSTIT.fondo, new vec3(0, 0, 0), 24)
+    // ✕ horneado arriba a la derecha → hotspot.
+    this.addHotspot(this.notePaper, "NoteClose", new vec3(5.6, 10.4, 0.7), 3, 3, () => this.closeNotePaper())
+    this.noteTitle = this.addText(this.notePaper, "", new vec3(-0.6, 6.6, 0.7), 34, 16.5, 3)
+    this.noteAbout = this.addText(this.notePaper, "", new vec3(-4, 4.4, 0.7), 20, 8.5, 2)
+    const badge = this.addImage(this.notePaper, "NoteBadge", TEX_BADGES[0], new vec3(3.4, 4.4, 0.7), 5.4)
+    this.noteBadgeImage = badge.image
+    this.noteBadgeObject = badge.object
+    const breakTitle = this.addText(this.notePaper, STR.breakItDown, new vec3(-3.2, 2.4, 0.7), 24, 10.5, 2.2)
+    breakTitle.textFill.color = new vec4(0.2, 0.3, 0.85, 1)
+    // Nota libre (tap para escribir) y pasos de la IA como checklist.
+    this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(0, 0.4, 0.7), 17, 3.2, () => this.openNoteKeyboard())
+    this.noteSteps = this.addText(this.notePaper, "", new vec3(0, -2.6, 0.7), 18, 17, 4)
+    const addStep = this.addImage(this.notePaper, "AddStep", TEX_POSTIT.addStep, new vec3(0, -5.4, 0.7), 8.2)
     this.makeInteractive(addStep.object, 8.6, 2.4, () => this.openNoteKeyboard())
     // Fila desplegable de tiempo: aparece al tocar el icono time.
-    this.noteTimeRow = this.obj(this.notePaper, "TimeRow", new vec3(0, -7.2, 0.9))
+    this.noteTimeRow = this.obj(this.notePaper, "TimeRow", new vec3(0, -5.4, 1.1))
     this.addSurfaceButton(this.noteTimeRow, "NoteMinus", "−", new vec3(-8.2, 0, 0), 2.6, 2.6, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: -1}))
     this.noteEstimate = this.addText(this.noteTimeRow, "⏱ 15m", new vec3(-4.4, 0, 0), 22, 4.8, 2.6)
     this.addSurfaceButton(this.noteTimeRow, "NotePlus", "+", new vec3(-0.7, 0, 0), 2.6, 2.6, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: 1}))
     this.addSurfaceButton(this.noteTimeRow, "NoteEstimate", STR.estimateButton, new vec3(5.4, 0, 0), 8.2, 2.6, () => this.estimateEvent.invoke(this.noteTaskIndex))
     this.noteTimeRow.enabled = false
-    // Botonera del post-it con los iconos del diseño: edit / time / remind / delete.
+    // Botonera del post-it: edit / time / remind / delete (iconos de Flor).
     const postitButtons: [string, Texture, () => void][] = [
       ["PEdit", TEX_POSTIT.edit, () => this.openKeyboard(this.noteTaskIndex)],
       ["PTime", TEX_POSTIT.time, () => { if (this.noteTimeRow) this.noteTimeRow.enabled = !this.noteTimeRow.enabled }],
@@ -590,7 +623,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     ]
     for (let i = 0; i < postitButtons.length; i++) {
       const [name, tex, action] = postitButtons[i]
-      const btn = this.addImage(this.notePaper, name, tex, new vec3(-7.7 + i * 5.1, -9.8, 0.7), 3.4)
+      const xs = [-9.2, -6, -2.8, 9.4] // delete a la derecha, lejos de la nube "You got this!"
+      const btn = this.addImage(this.notePaper, name, tex, new vec3(xs[i], -8.7, 0.7), 3.4)
       this.makeInteractive(btn.object, 3.8, 3.8, action)
     }
     this.notePaper.enabled = false
@@ -617,9 +651,16 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private refreshNotePaper(): void {
     const task = this.cards[this.selectedCard]?.tasks[this.noteTaskIndex]
     if (!task) { this.closeNotePaper(); return }
-    if (this.noteTitle) this.noteTitle.text = task.title.length > 16 ? task.title.substring(0, 15) + "…" : task.title
+    if (this.noteTitle) this.noteTitle.text = task.title.length > 20 ? task.title.substring(0, 19) + "…" : task.title
+    if (this.noteAbout) this.noteAbout.text = `⏱ ${STR.aboutMin(task.durationMinutes)}`
+    if (this.noteBadgeObject) this.noteBadgeObject.enabled = task.status !== "done"
+    if (this.noteBadgeImage && this.noteBadgeObject) {
+      const badgeTex = TEX_BADGES[Math.min(task.priority - 1, TEX_BADGES.length - 1)]
+      this.noteBadgeImage.mainPass.baseTex = badgeTex
+      this.noteBadgeObject.getTransform().setLocalScale(new vec3(5.4, 5.4 * this.aspectOf(badgeTex), 1))
+    }
     if (this.noteBody) this.noteBody.text = task.note.length > 0 ? task.note : STR.notePlaceholder
-    if (this.noteSteps) this.noteSteps.text = task.aiSteps.map((step) => `· ${step}`).join("\n")
+    if (this.noteSteps) this.noteSteps.text = task.aiSteps.map((step) => `☐ ${step}`).join("\n")
     if (this.noteEstimate) this.noteEstimate.text = `⏱ ${task.durationMinutes}m`
   }
 
@@ -707,6 +748,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
 
   private animateCarousel(): void {
     this.followCamera()
+    this.applyThumbDrag()
     const amount = Math.min(1, getDeltaTime() * 9)
     for (let index = 0; index < this.cardRoots.length; index++) {
       if (!this.cardRoots[index].enabled) continue
