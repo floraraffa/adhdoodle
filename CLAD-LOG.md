@@ -109,3 +109,13 @@ A friend tested on real SPECS hardware and sent notes; fixes within the hour:
 - **Reminder chime** softened to 0.22 volume.
 - **Intro jingle support**: new `introJingle` input on the panel (plays once over the logo); a licensed track ("Playful Marimba Comedy – Cute Shuffle", HR-Music) installed from the Lens Studio music library as a candidate.
 - Tutorial voice-over noted as a post-jam improvement (TTS module wiring too risky hours before the deadline).
+
+## Day 3 — Aug 15, 2026 (the native audio bug hunt, in three acts)
+
+Device testing surfaced a lens-killing crash on the music player's play/next. Claude reproduced it in preview — Lens Studio itself died with **zero JavaScript errors**, proving a native audio crash. Three hypotheses, each falsified by evidence:
+
+1. *Swap-while-playing*: assigning a new `audioTrack` to a playing AudioComponent → hard crash. Fix attempt: fresh component per track, destroying the old one. Result: no more crash, but **songs overlapped** — `destroy()` detaches the component without cutting its voice.
+2. *Finish callback*: `setOnFinish` **never fires** in this runtime — auto-advance silently dead.
+3. **Final architecture**: one AudioComponent reused for the whole playlist; every track change calls `stop()` before swapping; auto-advance by per-frame polling (`isPlaying()` with a 2-second startup grace). No callbacks, no destruction, no overlap, no crash.
+
+Also this round: grabbable post-it (pinch the sheet, stick it anywhere), the active notebook re-appends to the front of its render layer so neighbor pages always draw behind, the licensed library track was removed in favor of a user-provided jingle via the `introJingle` input, and every music entry point is exception-guarded.
