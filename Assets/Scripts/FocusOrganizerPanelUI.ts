@@ -70,6 +70,7 @@ const ROW_W = 25
 const ROW_H = 6.9
 
 const CONTROL_COLOR = new vec4(0.96, 0.97, 1.00, 1)
+const TUTORIAL_PINK = new vec4(0.99, 0.85, 0.90, 1)
 const POSTIT_COLOR = new vec4(1.00, 0.93, 0.55, 1)
 const RUNNING_TINT = new vec4(1.0, 0.88, 0.72, 1)
 const PAUSED_TINT = new vec4(0.72, 0.72, 0.75, 1)
@@ -508,18 +509,38 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.addImage(this.logoRoot, "Logo", TEX_LOGO, new vec3(0, 0, 0), 34)
     this.logoRoot.enabled = false
 
-    this.tutorialRoot = this.obj(this.sceneObject, "Tutorial", new vec3(0, -1, 14))
-    this.addImage(this.tutorialRoot, "TutorialCloud", TEX_CLOUD, new vec3(6.5, 7.5, 0), 14)
+    this.tutorialRoot = this.obj(this.sceneObject, "Tutorial", new vec3(0, -1, 20))
     const plate = this.tutorialRoot.createComponent(BackPlate.getTypeName()) as BackPlate
     plate.size = new vec2(26, 12)
     plate.style = "simple"
-    this.tint(plate, CONTROL_COLOR)
+    this.tint(plate, TUTORIAL_PINK)
     this.makeDecorative(plate)
-    this.tutorialText = this.addText(this.tutorialRoot, STR.tutorialWelcome, new vec3(0, 0.6, 0.7), 28, 24, 9)
+    // La nube bien adelante (z alto propio) para que no pelee con otros materiales.
+    this.addImage(this.tutorialRoot, "TutorialCloud", TEX_CLOUD, new vec3(6.5, 7.8, 2), 14)
+    const bubbleLabel = this.addText(this.tutorialRoot, "Tutorial", new vec3(3.4, 10.2, 2.6), 26, 5.2, 2.4)
+    this.tilt(bubbleLabel, 6)
+    this.tutorialText = this.addText(this.tutorialRoot, STR.tutorialWelcome, new vec3(0, 0.6, 1), 28, 24, 9)
     this.tutorialText.horizontalOverflow = HorizontalOverflow.Wrap
-    this.tutorialButton1 = this.addSurfaceButton(this.tutorialRoot, "TutorialGo", STR.tutorialStart, new vec3(-6, -4.2, 0.8), 10, 3, () => this.tutorialAdvance())
-    this.tutorialButton2 = this.addSurfaceButton(this.tutorialRoot, "TutorialSkip", STR.tutorialSkip, new vec3(6, -4.2, 0.8), 10, 3, () => this.finishTutorial())
+    this.tutorialButton1 = this.addSurfaceButton(this.tutorialRoot, "TutorialGo", STR.tutorialStart, new vec3(-6, -4.2, 1.2), 10, 3, () => this.tutorialAdvance())
+    this.tutorialButton2 = this.addSurfaceButton(this.tutorialRoot, "TutorialSkip", STR.tutorialSkip, new vec3(6, -4.2, 1.2), 10, 3, () => this.finishTutorial())
     this.tutorialRoot.enabled = false
+  }
+
+  // El tutorial acompaña la cabeza: es una conversación, siempre a la vista.
+  private tutorialFollow(snap: boolean = false): void {
+    if (!this.tutorialRoot?.enabled) return
+    const camTransform = WorldCameraFinderProvider.getInstance().getTransform()
+    const target = camTransform.getWorldPosition()
+      .add(camTransform.forward.uniformScale(-60))
+      .add(camTransform.up.uniformScale(-3))
+    const transform = this.tutorialRoot.getTransform()
+    if (snap) {
+      transform.setWorldPosition(target)
+    } else {
+      const current = transform.getWorldPosition()
+      transform.setWorldPosition(current.add(target.sub(current).uniformScale(Math.min(1, getDeltaTime() * 5))))
+    }
+    transform.setWorldRotation(this.sceneObject.getTransform().getWorldRotation())
   }
 
   /** Arranca la intro: logo animado ~15 s y, si corresponde, el tutorial. */
@@ -538,14 +559,14 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     // Flota y respira; a los 12 s se encoge y a los 15 se va.
     const bob = Math.sin(t * 2) * 0.7
     const pulse = 1 + 0.05 * Math.sin(t * 3)
-    const shrink = t < 5 ? 1 : Math.max(0.001, (8 - t) / 3)
+    const shrink = t < 3 ? 1 : Math.max(0.001, (6 - t) / 3)
     const scale = 34 * pulse * shrink
     this.logoRoot.getTransform().setLocalPosition(new vec3(0, 2 + bob, 10))
     const aspect = this.aspectOf(TEX_LOGO)
     this.logoRoot.getTransform().setLocalScale(vec3.one())
     const logoImage = this.logoRoot.getChild(0)
     logoImage.getTransform().setLocalScale(new vec3(scale, scale * aspect, 1))
-    if (t >= 8) {
+    if (t >= 6) {
       this.logoRoot.enabled = false
       this.introActive = false
       if (this.pendingTutorial) this.openTutorial()
@@ -559,6 +580,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     if (this.tutorialButton1) this.tutorialButton1.text = STR.tutorialStart
     if (this.tutorialButton2) this.tutorialButton2.text = STR.tutorialSkip
     if (this.tutorialRoot) this.tutorialRoot.enabled = true
+    this.tutorialFollow(true)
     this.updateCarouselTargets()
   }
 
@@ -865,6 +887,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
 
   private animateCarousel(): void {
     this.updateIntro()
+    this.tutorialFollow()
     this.followCamera()
     this.applyThumbDrag()
     const amount = Math.min(1, getDeltaTime() * 9)

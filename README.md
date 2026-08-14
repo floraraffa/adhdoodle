@@ -1,6 +1,10 @@
-# ☁️ Focus Organizer — an ADHD-friendly spatial planner for SPECS
+<p align="center"><img src="Assets/DesignAssets/logo.png" alt="ADHDoodle" width="560"/></p>
 
-A spatial experience that **organizes your work and helps you stay focused while doing it** — designed with ADHD minds at the center. Built for the [CLAD Summer Hackathon](https://lenslist.co/clad-summer-hackathon), Week 1: *Organize*.
+# ☁️ ADHDoodle — your messy little focus space
+
+An ADHD-friendly spatial planner for SPECS
+
+ADHDoodle is a spatial experience that **organizes your work and helps you stay focused while doing it** — designed with ADHD minds at the center. Built for the [CLAD Summer Hackathon](https://lenslist.co/clad-summer-hackathon), Week 1: *Organize*.
 
 > Your to-do list becomes a cozy kawaii notebook floating in your space, a cloud companion powered by AI keeps you company, and when you press play the world quiets down so you can do one thing at a time.
 
