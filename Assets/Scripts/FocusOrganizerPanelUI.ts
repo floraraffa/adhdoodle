@@ -51,6 +51,7 @@ const TEX_POSTIT = {
   addStep: requireAsset("../DesignAssets/postit-add-step.png") as Texture,
   fondo: requireAsset("../DesignAssets/postit-fondo.png") as Texture,
 }
+const TEX_LOGO = requireAsset("../DesignAssets/logo.png") as Texture
 const TEX_MUSIC = {
   play: requireAsset("../DesignAssets/music-play.png") as Texture,
   next: requireAsset("../DesignAssets/music-next.png") as Texture,
@@ -122,6 +123,16 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private scrollRoot: SceneObject | null = null
   private scrollThumb: SceneObject | null = null
   private thumbDragging = false
+  private introActive = false
+  private introElapsed = 0
+  private pendingTutorial = false
+  private logoRoot: SceneObject | null = null
+  private tutorialRoot: SceneObject | null = null
+  private tutorialText: Text | null = null
+  private tutorialButton1: Text | null = null
+  private tutorialButton2: Text | null = null
+  private tutorialStep = -1
+  private readonly onboardingDoneEvent = new Event<void>()
   @input meditationTracks: AudioTrackAsset[] = []
   private musicPopup: SceneObject | null = null
   private musicLabel: Text | null = null
@@ -174,6 +185,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   get onFocusDone(): PublicApi<void> { return this.focusDoneEvent.publicApi() }
   /** Tap en los tabs laterales del cuaderno (HOME / WORK / ME TIME). */
   get onCardSelected(): PublicApi<number> { return this.cardSelectEvent.publicApi() }
+  get onOnboardingDone(): PublicApi<void> { return this.onboardingDoneEvent.publicApi() }
   get onDelete(): PublicApi<number> { return this.deleteEvent.publicApi() }
 
   onAwake(): void {
@@ -186,6 +198,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.createNotePaper()
     this.createFocusChip()
     this.createFocusView()
+    this.createIntro()
     this.updateCarouselTargets()
     this.createEvent("OnStartEvent").bind(() => this.centerHorizontallyInView())
     this.createEvent("UpdateEvent").bind(() => this.animateCarousel())
@@ -488,6 +501,79 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.refreshMusicPopup()
   }
 
+  // ——— Intro del logo + tutorial de la nube ———
+
+  private createIntro(): void {
+    this.logoRoot = this.obj(this.sceneObject, "LogoIntro", new vec3(0, 2, 10))
+    this.addImage(this.logoRoot, "Logo", TEX_LOGO, new vec3(0, 0, 0), 34)
+    this.logoRoot.enabled = false
+
+    this.tutorialRoot = this.obj(this.sceneObject, "Tutorial", new vec3(0, -1, 8))
+    this.addImage(this.tutorialRoot, "TutorialCloud", TEX_CLOUD, new vec3(6.5, 7.5, 0), 14)
+    const plate = this.tutorialRoot.createComponent(BackPlate.getTypeName()) as BackPlate
+    plate.size = new vec2(26, 12)
+    plate.style = "simple"
+    this.tint(plate, CONTROL_COLOR)
+    this.makeDecorative(plate)
+    this.tutorialText = this.addText(this.tutorialRoot, STR.tutorialWelcome, new vec3(0, 0.6, 0.7), 22, 24, 9)
+    this.tutorialText.horizontalOverflow = HorizontalOverflow.Wrap
+    this.tutorialButton1 = this.addSurfaceButton(this.tutorialRoot, "TutorialGo", STR.tutorialStart, new vec3(-6, -4.2, 0.8), 10, 3, () => this.tutorialAdvance())
+    this.tutorialButton2 = this.addSurfaceButton(this.tutorialRoot, "TutorialSkip", STR.tutorialSkip, new vec3(6, -4.2, 0.8), 10, 3, () => this.finishTutorial())
+    this.tutorialRoot.enabled = false
+  }
+
+  /** Arranca la intro: logo animado ~15 s y, si corresponde, el tutorial. */
+  showIntro(withTutorial: boolean): void {
+    this.pendingTutorial = withTutorial
+    this.introActive = true
+    this.introElapsed = 0
+    if (this.logoRoot) this.logoRoot.enabled = true
+    this.updateCarouselTargets()
+  }
+
+  private updateIntro(): void {
+    if (!this.introActive || !this.logoRoot) return
+    this.introElapsed += getDeltaTime()
+    const t = this.introElapsed
+    // Flota y respira; a los 12 s se encoge y a los 15 se va.
+    const bob = Math.sin(t * 2) * 0.7
+    const pulse = 1 + 0.05 * Math.sin(t * 3)
+    const shrink = t < 12 ? 1 : Math.max(0.001, (15 - t) / 3)
+    const scale = 34 * pulse * shrink
+    this.logoRoot.getTransform().setLocalPosition(new vec3(0, 2 + bob, 10))
+    const aspect = this.aspectOf(TEX_LOGO)
+    this.logoRoot.getTransform().setLocalScale(vec3.one())
+    const logoImage = this.logoRoot.getChild(0)
+    logoImage.getTransform().setLocalScale(new vec3(scale, scale * aspect, 1))
+    if (t >= 15) {
+      this.logoRoot.enabled = false
+      this.introActive = false
+      if (this.pendingTutorial) this.openTutorial()
+      else this.updateCarouselTargets()
+    }
+  }
+
+  private openTutorial(): void {
+    this.tutorialStep = -1
+    if (this.tutorialText) this.tutorialText.text = STR.tutorialWelcome
+    if (this.tutorialButton1) this.tutorialButton1.text = STR.tutorialStart
+    if (this.tutorialButton2) this.tutorialButton2.text = STR.tutorialSkip
+    if (this.tutorialRoot) this.tutorialRoot.enabled = true
+    this.updateCarouselTargets()
+  }
+
+  private tutorialAdvance(): void {
+    this.tutorialStep++
+    if (this.tutorialStep >= STR.tutorialSteps.length) { this.finishTutorial(); return }
+    if (this.tutorialText) this.tutorialText.text = STR.tutorialSteps[this.tutorialStep]
+    if (this.tutorialButton1) this.tutorialButton1.text = this.tutorialStep === STR.tutorialSteps.length - 1 ? STR.tutorialDone : STR.tutorialNext
+  }
+
+  private finishTutorial(): void {
+    if (this.tutorialRoot) this.tutorialRoot.enabled = false
+    this.onboardingDoneEvent.invoke()
+  }
+
   // ——— Focus Mode: espacio visual limpio — solo la tarea y el reloj ———
 
   private createFocusView(): void {
@@ -738,6 +824,10 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   }
 
   private updateCarouselTargets(): void {
+    if (this.introActive) {
+      for (const root of this.cardRoots) root.enabled = false
+      return
+    }
     if (this.focusActive) {
       for (const root of this.cardRoots) root.enabled = false
       return
@@ -774,6 +864,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   }
 
   private animateCarousel(): void {
+    this.updateIntro()
     this.followCamera()
     this.applyThumbDrag()
     const amount = Math.min(1, getDeltaTime() * 9)

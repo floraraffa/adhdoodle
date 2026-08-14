@@ -89,3 +89,12 @@ Five rapid review rounds between Flor (design direction + asset production) and 
 - "more" opens a mini meditation music player (Flor loads 3 tracks via the panel's meditationTracks input; play/pause/next, looping).
 - Flor's scrollbar assets wired: arrow zones page the list and the violet thumb is pinch-draggable, clamped to its track, scrolling live (appears with 5+ tasks).
 - The task post-it rebuilt on Flor's illustrated background exactly per her reference: big title, "about N min" + priority badge, blue "Break it down!" with the AI micro-steps as a checklist, add-step, and edit/time (collapsible -/+/estimate)/remind/delete buttons — task deletion added to state. Background double-layered to kill translucency.
+
+## Day 2, final sessions — Aug 14, 2026 (a name, an intro, an onboarding — and the repo goes live)
+
+- The project got its identity: **ADHDoodle — your messy little focus space** (logo art by Flor).
+- **Logo intro**: the logo floats and breathes in the world for ~12 s, then shrinks away (15 s total) before the notebook appears.
+- **Cloud-guided onboarding**: on first launch the focus cloud offers a tour ("▶ Show me / Skip tutorial") and walks through 5 steps — spaces & tabs, adding tasks & the AI post-it, Focus Mode, the gentle drift nudges, check-ins & meditation music. Completion persists; it never nags again.
+- **Meditation playlist** now auto-advances track to track (pause-aware) instead of looping one song.
+- Focus Mode gained a soft 10-second tick and an end-of-timer chime.
+- English README written; secret scan over all tracked files (clean); **public repo created and pushed: https://github.com/floraraffa/focus-organizer-specs**

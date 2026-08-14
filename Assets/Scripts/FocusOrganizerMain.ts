@@ -7,6 +7,7 @@ import {loadJSON, saveJSON} from "./FocusPersist"
 import {STR} from "./Strings"
 
 const KEY_STATE = "focus_organizer_v1"
+const KEY_ONBOARDED = "focus_onboarded_v1"
 const RUNNING_SAVE_INTERVAL = 10
 
 interface SavedPayload {
@@ -74,6 +75,8 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     this.reminderMinutes = this.reminderMinutes === 10 ? 10 : this.reminderMinutes === 0 ? 0 : 5
     this.panel.setReminderLabel(this.reminderMinutes)
     this.render(); print("[FocusOrganizer] Carrusel listo: listas desplazables, prioridades y recordatorio de foco")
+    this.panel.onOnboardingDone.add(() => saveJSON(KEY_ONBOARDED, true))
+    this.panel.showIntro(loadJSON<boolean>(KEY_ONBOARDED) !== true)
   }
 
   private onUpdate(): void {

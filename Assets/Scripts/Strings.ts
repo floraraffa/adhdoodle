@@ -83,6 +83,18 @@ const EN = {
   focusDone: "✓ done",
   focusNudges: ["Hey! Focus — you're almost done!", "Let's finish this first!", "Back to it. Small step, big win."],
   badges: ["🔥", "⭐", "🍃"],
+  tutorialWelcome: "Hi! I'm your focus cloud ☁️\nWant a quick tour?",
+  tutorialStart: "▶ Show me",
+  tutorialSkip: "Skip tutorial",
+  tutorialNext: "Next →",
+  tutorialDone: "Let's go! 💜",
+  tutorialSteps: [
+    "These pages are your spaces:\nHome, Work and Me time.\nTap the side tabs or swipe.",
+    "Tap + Add a task to write one.\nTap any task to open its post-it:\nnotes, time, and ✨ AI that\nsplits it into tiny steps.",
+    "Press a task's play button:\neverything fades away and I stay\nwith you, holding the timer.",
+    "If you drift off for a while,\nI'll gently call you back.\nNo guilt — ever.",
+    "The bell checks in on you.\nThe ••• button has meditation\nmusic. Everything saves on its own.",
+  ],
   formatDate: () => {
     const now = new Date()
     const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -159,6 +171,18 @@ const ES: typeof EN = {
   focusDone: "✓ listo",
   focusNudges: ["¡Hey! Foco — ¡ya casi terminás!", "¡Terminemos esto primero!", "Volvé. Paso chico, victoria grande."],
   badges: ["🔥", "⭐", "🍃"],
+  tutorialWelcome: "¡Hola! Soy tu nube de foco ☁️\n¿Querés un tour rápido?",
+  tutorialStart: "▶ Mostrame",
+  tutorialSkip: "Saltear tutorial",
+  tutorialNext: "Siguiente →",
+  tutorialDone: "¡Vamos! 💜",
+  tutorialSteps: [
+    "Estas páginas son tus espacios:\nCasa, Trabajo y Mi tiempo.\nTocá los tabs o deslizá.",
+    "Tocá + Agregar tarea para escribir.\nTocá una tarea y se abre su post-it:\nnotas, tiempo y ✨ IA que la\ndivide en pasos chiquitos.",
+    "Apretá el play de una tarea:\ntodo desaparece y yo me quedo\ncon vos, sosteniendo el timer.",
+    "Si te distraés un rato largo,\nte llamo de vuelta con cariño.\nSin culpa — nunca.",
+    "La campana te hace check-in.\nEl botón ••• tiene música de\nmeditación. Todo se guarda solo.",
+  ],
   formatDate: () => {
     const now = new Date()
     const days = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"]
