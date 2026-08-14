@@ -345,7 +345,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.reminderOverlay.getSceneObject().enabled = false
     // El coach habla desde el globito de la nube (arriba a la derecha),
     // con texto grande e inclinado acompañando al globo.
-    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.7, 20.35, 0.9), 19, 5, 3)
+    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(6.2, 20.2, 0.9), 19, 4.6, 2.8)
     this.coachText.horizontalOverflow = HorizontalOverflow.Wrap
     this.tilt(this.coachText, 6)
     // Popup de tiempo: total manual + estimación con IA, para la tarea seleccionada.
@@ -371,12 +371,12 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     musicPlate.style = "simple"
     this.tint(musicPlate, CONTROL_COLOR)
     this.makeDecorative(musicPlate)
-    this.addText(this.musicPopup, "🧘 Meditation", new vec3(-1.4, 3.1, 0.6), 30, 13, 2.8)
+    this.addText(this.musicPopup, "🧘 Meditation", new vec3(-1.4, 3.1, 0.6), 38, 14, 3.2)
     this.addSurfaceButton(this.musicPopup, "MusicClose", "✕", new vec3(7.9, 3.1, 0.6), 2.6, 2.4, () => { if (this.musicPopup) this.musicPopup.enabled = false })
-    this.musicLabel = this.addText(this.musicPopup, "", new vec3(0, 0.4, 0.6), 18, 16, 2.6)
-    const playButton = this.addImage(this.musicPopup, "MusicPlay", TEX_MUSIC.play, new vec3(-3.5, -2.6, 0.6), 4.2)
+    this.musicLabel = this.addText(this.musicPopup, "", new vec3(0, 0.5, 0.6), 24, 16.5, 2.8)
+    const playButton = this.addImage(this.musicPopup, "MusicPlay", TEX_MUSIC.play, new vec3(-3.5, -2.7, 0.6), 3.4)
     this.makeInteractive(playButton.object, 4.6, 4.8, () => this.toggleMusic())
-    const nextButton = this.addImage(this.musicPopup, "MusicNext", TEX_MUSIC.next, new vec3(3.5, -2.6, 0.6), 4.2)
+    const nextButton = this.addImage(this.musicPopup, "MusicNext", TEX_MUSIC.next, new vec3(3.5, -2.7, 0.6), 3.4)
     this.makeInteractive(nextButton.object, 4.6, 4.8, () => this.nextMusic())
     this.musicPopup.enabled = false
     this.checkInRoot = this.obj(this.detailRoot, "CheckIn", new vec3(0, -14.2, 3))

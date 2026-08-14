@@ -4151,13 +4151,16 @@
   Enabled: true
   ScriptAsset: !<reference> dd105587-99e8-4fbc-a286-7433bcce3fe8
   ScriptInputsDefault:
-    meditationTracks: true
+    {}
   ScriptTypesDefault:
     {}
   ScriptInputs:
     "":
       meditationTracks: !<reference.AudioTrackAsset[]>
-        []
+        - !<reference> c2423e35-2ea0-44af-8345-4cc9a2bf7395
+        - !<reference> 08bcd415-fc42-461e-beda-d1e028820662
+        - !<reference> 05e141a0-5366-4591-a663-45c065cbf6f0
+        - !<reference> 09a204d9-b7a1-4aeb-aabf-39c58c7907a9
   ScriptTypes:
     "":
       {}
