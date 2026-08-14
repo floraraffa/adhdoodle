@@ -55,6 +55,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     this.swipe.setIndexDragTarget(this.panel.sceneObject)
     this.tapAudio = this.createSfx("FocusTapAudio", FOCUS_TAP); this.doneAudio = this.createSfx("TaskDoneAudio", TASK_DONE)
     this.reminderAudio = this.createSfx("FocusReminderAudio", FOCUS_REMINDER)
+    this.reminderAudio.volume = 0.22 // la campana, suave: acompaña, no sobresalta
     this.swipe.onSwipe.add((direction) => { this.state.moveCard(direction); this.play(this.tapAudio); this.panel.setCoach(STR.coachCard); this.render() })
     this.swipe.onScroll.add((direction) => { this.panel.scrollTasks(direction); this.play(this.tapAudio) })
     this.swipe.onDragProgress.add((progress) => this.panel.setCarouselDrag(progress))

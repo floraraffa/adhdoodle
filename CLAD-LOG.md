@@ -98,3 +98,14 @@ Five rapid review rounds between Flor (design direction + asset production) and 
 - **Meditation playlist** now auto-advances track to track (pause-aware) instead of looping one song.
 - Focus Mode gained a soft 10-second tick and an end-of-timer chime.
 - English README written; secret scan over all tracked files (clean); **public repo created and pushed: https://github.com/floraraffa/adhdoodle**
+
+## Day 2, device feedback round — Aug 14, 2026 (real SPECS tester)
+
+A friend tested on real SPECS hardware and sent notes; fixes within the hour:
+
+- **All type +17%** globally (the waveguide eats small text); tutorial body up again.
+- **Neighbor pages tucked into the narrow FOV**: closer (±26 cm), smaller and deeper, ±2 pages hidden — no more clipped "Work"/"Me time".
+- **Music pause bug found and fixed**: on some runtimes `pause()` fires the finish callback, and the auto-advancing playlist relaunched the track — the playing flag now drops *before* pausing.
+- **Reminder chime** softened to 0.22 volume.
+- **Intro jingle support**: new `introJingle` input on the panel (plays once over the logo); a licensed track ("Playful Marimba Comedy – Cute Shuffle", HR-Music) installed from the Lens Studio music library as a candidate.
+- Tutorial voice-over noted as a post-jam improvement (TTS module wiring too risky hours before the deadline).

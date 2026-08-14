@@ -60,7 +60,7 @@ const TEX_MUSIC = {
 const IMAGE_MATERIAL = requireAsset("../../Packages/SpectaclesUIKit.lspkg/Materials/Image.mat") as Material
 // Tipografía handscript del diseño (Cheese Milky) — grande, como en la referencia.
 const FONT_HAND = requireAsset("../Fonts/CheeseMilky.otf") as Font
-const FONT_SCALE = 1.5
+const FONT_SCALE = 1.75
 
 // Página 800×1024 px → 39×50 cm (factor 0.0488 cm/px)
 const PAGE_W = 39
@@ -136,6 +136,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private tutorialStep = -1
   private readonly onboardingDoneEvent = new Event<void>()
   @input meditationTracks: AudioTrackAsset[] = []
+  @input introJingle: AudioTrackAsset[] = []
   private musicPopup: SceneObject | null = null
   private musicLabel: Text | null = null
   private musicAudio: AudioComponent | null = null
@@ -465,8 +466,10 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private toggleMusic(): void {
     if (this.meditationTracks.length === 0) return
     if (this.musicPlaying) {
-      this.musicAudio?.pause()
+      // Primero la bandera: en algunos runtimes pause() dispara onFinish y la
+      // playlist automática relanzaba la pista → "el pause no anda".
       this.musicPlaying = false
+      this.musicAudio?.pause()
       this.refreshMusicPopup()
       return
     }
@@ -522,7 +525,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.tilt(bubbleLabel, 6)
     this.tutorialEmphasis = this.addText(this.tutorialRoot, STR.tutorialWelcomeBold, new vec3(0, 3.9, 1), 32, 24, 3.2)
     this.boldify(this.tutorialEmphasis)
-    this.tutorialText = this.addText(this.tutorialRoot, STR.tutorialWelcome, new vec3(0, 0.4, 1), 26, 24, 6)
+    this.tutorialText = this.addText(this.tutorialRoot, STR.tutorialWelcome, new vec3(0, 0.4, 1), 30, 24, 6)
     this.tutorialText.horizontalOverflow = HorizontalOverflow.Wrap
     this.tutorialButton1 = this.addSurfaceButton(this.tutorialRoot, "TutorialGo", STR.tutorialStart, new vec3(-6, -3.6, 1.2), 10, 3, () => this.tutorialAdvance())
     this.tutorialButton2 = this.addSurfaceButton(this.tutorialRoot, "TutorialSkip", STR.tutorialSkip, new vec3(6, -3.6, 1.2), 10, 3, () => this.finishTutorial())
@@ -551,6 +554,12 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.pendingTutorial = withTutorial
     this.introActive = true
     this.introElapsed = 0
+    if (this.introJingle.length > 0) {
+      const jingle = this.sceneObject.createComponent("Component.AudioComponent") as AudioComponent
+      jingle.audioTrack = this.introJingle[0]
+      jingle.volume = 0.55
+      jingle.play(1)
+    }
     if (this.logoRoot) this.logoRoot.enabled = true
     this.updateCarouselTargets()
   }
@@ -870,7 +879,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     // El arrastre corre todo el carrusel de forma continua; al soltar, el snap
     // cambia selectedCard y las cards ya están casi en su lugar (sin salto).
     // En modo túnel solo queda la card activa: menos invitaciones a distraerse.
-    const maxNeighbors = this.tunnelIndex !== null ? 0 : 2
+    const maxNeighbors = this.tunnelIndex !== null ? 0 : 1
     const shiftX = this.dragShift * 34
     const centerBlend = Math.min(1, Math.abs(this.dragShift))
     for (let index = 0; index < count; index++) {
@@ -885,8 +894,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
         this.cardRoots[index].getTransform().setLocalRotation(quat.quatIdentity())
       } else if (abs === 1) {
         const towardCenter = Math.sign(-diff) === Math.sign(this.dragShift) ? centerBlend : 0
-        this.targets[index] = new vec3(diff * 34 + shiftX, 1.5 * (1 - towardCenter), -13 * (1 - towardCenter))
-        const scale = 0.76 + 0.24 * towardCenter
+        this.targets[index] = new vec3(diff * 26 + shiftX, 1.5 * (1 - towardCenter), -20 * (1 - towardCenter))
+        const scale = 0.6 + 0.4 * towardCenter
         this.targetScales[index] = new vec3(scale, scale, scale)
         this.cardRoots[index].getTransform().setLocalRotation(quat.angleAxis(-diff * 0.16 * (1 - towardCenter), vec3.up()))
       } else {
