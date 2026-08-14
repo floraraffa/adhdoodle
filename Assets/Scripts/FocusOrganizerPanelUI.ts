@@ -130,6 +130,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private logoRoot: SceneObject | null = null
   private tutorialRoot: SceneObject | null = null
   private tutorialText: Text | null = null
+  private tutorialEmphasis: Text | null = null
   private tutorialButton1: Text | null = null
   private tutorialButton2: Text | null = null
   private tutorialStep = -1
@@ -511,7 +512,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
 
     this.tutorialRoot = this.obj(this.sceneObject, "Tutorial", new vec3(0, -1, 20))
     const plate = this.tutorialRoot.createComponent(BackPlate.getTypeName()) as BackPlate
-    plate.size = new vec2(26, 12)
+    plate.size = new vec2(26, 14.5)
     plate.style = "simple"
     this.tint(plate, TUTORIAL_PINK)
     this.makeDecorative(plate)
@@ -519,10 +520,12 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.addImage(this.tutorialRoot, "TutorialCloud", TEX_CLOUD, new vec3(6.5, 7.8, 2), 14)
     const bubbleLabel = this.addText(this.tutorialRoot, "Tutorial", new vec3(3.4, 10.2, 2.6), 26, 5.2, 2.4)
     this.tilt(bubbleLabel, 6)
-    this.tutorialText = this.addText(this.tutorialRoot, STR.tutorialWelcome, new vec3(0, 0.6, 1), 28, 24, 9)
+    this.tutorialEmphasis = this.addText(this.tutorialRoot, STR.tutorialWelcomeBold, new vec3(0, 3.9, 1), 32, 24, 3.2)
+    this.boldify(this.tutorialEmphasis)
+    this.tutorialText = this.addText(this.tutorialRoot, STR.tutorialWelcome, new vec3(0, 0.4, 1), 26, 24, 6)
     this.tutorialText.horizontalOverflow = HorizontalOverflow.Wrap
-    this.tutorialButton1 = this.addSurfaceButton(this.tutorialRoot, "TutorialGo", STR.tutorialStart, new vec3(-6, -4.2, 1.2), 10, 3, () => this.tutorialAdvance())
-    this.tutorialButton2 = this.addSurfaceButton(this.tutorialRoot, "TutorialSkip", STR.tutorialSkip, new vec3(6, -4.2, 1.2), 10, 3, () => this.finishTutorial())
+    this.tutorialButton1 = this.addSurfaceButton(this.tutorialRoot, "TutorialGo", STR.tutorialStart, new vec3(-6, -3.6, 1.2), 10, 3, () => this.tutorialAdvance())
+    this.tutorialButton2 = this.addSurfaceButton(this.tutorialRoot, "TutorialSkip", STR.tutorialSkip, new vec3(6, -3.6, 1.2), 10, 3, () => this.finishTutorial())
     this.tutorialRoot.enabled = false
   }
 
@@ -561,9 +564,16 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     const pulse = 1 + 0.05 * Math.sin(t * 3)
     const shrink = t < 3 ? 1 : Math.max(0.001, (6 - t) / 3)
     const scale = 34 * pulse * shrink
-    this.logoRoot.getTransform().setLocalPosition(new vec3(0, 2 + bob, 10))
+    // El logo acompaña la cabeza, con su flotecito vertical.
+    const camTransform = WorldCameraFinderProvider.getInstance().getTransform()
+    const target = camTransform.getWorldPosition()
+      .add(camTransform.forward.uniformScale(-65))
+      .add(camTransform.up.uniformScale(2 + bob))
+    const transform = this.logoRoot.getTransform()
+    const current = transform.getWorldPosition()
+    transform.setWorldPosition(t < 0.15 ? target : current.add(target.sub(current).uniformScale(Math.min(1, getDeltaTime() * 6))))
+    transform.setWorldRotation(this.sceneObject.getTransform().getWorldRotation())
     const aspect = this.aspectOf(TEX_LOGO)
-    this.logoRoot.getTransform().setLocalScale(vec3.one())
     const logoImage = this.logoRoot.getChild(0)
     logoImage.getTransform().setLocalScale(new vec3(scale, scale * aspect, 1))
     if (t >= 6) {
@@ -576,6 +586,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
 
   private openTutorial(): void {
     this.tutorialStep = -1
+    if (this.tutorialEmphasis) this.tutorialEmphasis.text = STR.tutorialWelcomeBold
     if (this.tutorialText) this.tutorialText.text = STR.tutorialWelcome
     if (this.tutorialButton1) this.tutorialButton1.text = STR.tutorialStart
     if (this.tutorialButton2) this.tutorialButton2.text = STR.tutorialSkip
@@ -587,7 +598,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private tutorialAdvance(): void {
     this.tutorialStep++
     if (this.tutorialStep >= STR.tutorialSteps.length) { this.finishTutorial(); return }
-    if (this.tutorialText) this.tutorialText.text = STR.tutorialSteps[this.tutorialStep]
+    if (this.tutorialEmphasis) this.tutorialEmphasis.text = STR.tutorialSteps[this.tutorialStep].bold
+    if (this.tutorialText) this.tutorialText.text = STR.tutorialSteps[this.tutorialStep].text
     if (this.tutorialButton1) this.tutorialButton1.text = this.tutorialStep === STR.tutorialSteps.length - 1 ? STR.tutorialDone : STR.tutorialNext
   }
 
@@ -971,6 +983,13 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   /** Inclina un texto para que acompañe a su contenedor dibujado. */
   private tilt(text: Text, degrees: number): void {
     text.getSceneObject().getTransform().setLocalRotation(quat.angleAxis((degrees * Math.PI) / 180, new vec3(0, 0, 1)))
+  }
+
+  /** "Bold" simulado: contorno del mismo color del texto. */
+  private boldify(text: Text): void {
+    text.outlineSettings.enabled = true
+    text.outlineSettings.size = 0.14
+    text.outlineSettings.fill.color = TEXT_COLOR
   }
 
   /** Título: inclinado + "bold" simulado con contorno del mismo color. */
