@@ -508,14 +508,14 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.addImage(this.logoRoot, "Logo", TEX_LOGO, new vec3(0, 0, 0), 34)
     this.logoRoot.enabled = false
 
-    this.tutorialRoot = this.obj(this.sceneObject, "Tutorial", new vec3(0, -1, 8))
+    this.tutorialRoot = this.obj(this.sceneObject, "Tutorial", new vec3(0, -1, 14))
     this.addImage(this.tutorialRoot, "TutorialCloud", TEX_CLOUD, new vec3(6.5, 7.5, 0), 14)
     const plate = this.tutorialRoot.createComponent(BackPlate.getTypeName()) as BackPlate
     plate.size = new vec2(26, 12)
     plate.style = "simple"
     this.tint(plate, CONTROL_COLOR)
     this.makeDecorative(plate)
-    this.tutorialText = this.addText(this.tutorialRoot, STR.tutorialWelcome, new vec3(0, 0.6, 0.7), 22, 24, 9)
+    this.tutorialText = this.addText(this.tutorialRoot, STR.tutorialWelcome, new vec3(0, 0.6, 0.7), 28, 24, 9)
     this.tutorialText.horizontalOverflow = HorizontalOverflow.Wrap
     this.tutorialButton1 = this.addSurfaceButton(this.tutorialRoot, "TutorialGo", STR.tutorialStart, new vec3(-6, -4.2, 0.8), 10, 3, () => this.tutorialAdvance())
     this.tutorialButton2 = this.addSurfaceButton(this.tutorialRoot, "TutorialSkip", STR.tutorialSkip, new vec3(6, -4.2, 0.8), 10, 3, () => this.finishTutorial())
@@ -538,14 +538,14 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     // Flota y respira; a los 12 s se encoge y a los 15 se va.
     const bob = Math.sin(t * 2) * 0.7
     const pulse = 1 + 0.05 * Math.sin(t * 3)
-    const shrink = t < 12 ? 1 : Math.max(0.001, (15 - t) / 3)
+    const shrink = t < 5 ? 1 : Math.max(0.001, (8 - t) / 3)
     const scale = 34 * pulse * shrink
     this.logoRoot.getTransform().setLocalPosition(new vec3(0, 2 + bob, 10))
     const aspect = this.aspectOf(TEX_LOGO)
     this.logoRoot.getTransform().setLocalScale(vec3.one())
     const logoImage = this.logoRoot.getChild(0)
     logoImage.getTransform().setLocalScale(new vec3(scale, scale * aspect, 1))
-    if (t >= 15) {
+    if (t >= 8) {
       this.logoRoot.enabled = false
       this.introActive = false
       if (this.pendingTutorial) this.openTutorial()
