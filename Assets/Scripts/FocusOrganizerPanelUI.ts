@@ -39,6 +39,8 @@ const TEX_ICONS = {
   more: requireAsset("../DesignAssets/icon-more.png") as Texture,
 }
 const TEX_CLOUD = requireAsset("../DesignAssets/cloud.png") as Texture
+const TEX_SCROLL_BAR = requireAsset("../DesignAssets/scroll-bar.png") as Texture
+const TEX_SCROLL_BTN = requireAsset("../DesignAssets/scroll-button.png") as Texture
 // Los Image creados en runtime no traen material: se clona el del UIKit.
 const IMAGE_MATERIAL = requireAsset("../../Packages/SpectaclesUIKit.lspkg/Materials/Image.mat") as Material
 // Tipografía handscript del diseño (Cheese Milky) — grande, como en la referencia.
@@ -55,6 +57,8 @@ const ROW_H = 6.9
 const CONTROL_COLOR = new vec4(0.96, 0.97, 1.00, 1)
 const POSTIT_COLOR = new vec4(1.00, 0.93, 0.55, 1)
 const RUNNING_TINT = new vec4(1.0, 0.88, 0.72, 1)
+const PAUSED_TINT = new vec4(0.72, 0.72, 0.75, 1)
+const SELECTED_TINT = new vec4(0.85, 0.85, 0.89, 1)
 const NORMAL_TINT = new vec4(1, 1, 1, 1)
 const TEXT_COLOR = new vec4(0.25, 0.2, 0.35, 1)
 const TEXT_SOFT = new vec4(0.42, 0.31, 0.58, 1)
@@ -100,6 +104,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private reminderMinutesUI = 5
   private timePopup: SceneObject | null = null
   private timePopupMinutes: Text | null = null
+  private scrollRoot: SceneObject | null = null
+  private scrollThumb: SceneObject | null = null
   private selectedCard = 0
   private selectedTask = 0
   private scrollOffset = 0
@@ -181,6 +187,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     }
     const tasks = cards[selectedCard].tasks
     for (let row = 0; row < 4; row++) this.renderTask(row, tasks[this.scrollOffset + row])
+    this.updateScrollbar()
     if (cardChanged) this.closeNotePaper()
     if (cardChanged && this.timePopup) this.timePopup.enabled = false
     if (this.timePopup?.enabled) this.refreshTimePopup()
@@ -211,6 +218,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     const tasks = this.cards[this.selectedCard]?.tasks ?? []
     for (let row = 0; row < 4; row++) this.renderTask(row, tasks[this.scrollOffset + row])
     this.applyTunnel()
+    this.updateScrollbar()
   }
 
   // ——— La página del cuaderno ———
@@ -219,9 +227,9 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     const root = this.obj(this.sceneObject, `CarouselCard-${index}`, vec3.zero())
     this.addImage(root, "Page", TEX_PAGES[index % TEX_PAGES.length], new vec3(0, 0, 0), PAGE_W, PAGE_H)
     // Título grande y "bold" (outline del mismo color), inclinado con la cinta.
-    const title = this.addText(root, STR.categories[index], new vec3(-5.2, 20.2, 0.7), 75, 14.5, 4.6)
-    this.tiltAndBold(title, -25)
-    this.addText(root, STR.formatDate(), new vec3(-6.4, 16.5, 0.7), 25, 10.5, 2)
+    const title = this.addText(root, STR.categories[index], new vec3(-5.2, 20.1, 0.7), 62, 12.5, 4)
+    this.tiltAndBold(title, 25)
+    this.addText(root, STR.formatDate(), new vec3(-6.4, 16.1, 0.7), 25, 10.5, 2)
     const summary = this.addText(root, STR.taskCount(0, 0), new vec3(-6, 14.3, 0.7), 25, 13, 1.9)
     // La nube (la IA) con su globito, arriba a la derecha como en el diseño.
     this.addImage(root, "Cloud", TEX_CLOUD, new vec3(8.4, 18.4, 0.6), 12, 9.4)
@@ -266,6 +274,15 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
       // Hotspot sobre el checkbox horneado (izquierda de la tira) → completar.
       this.addHotspot(rowRoot, `Done-${row}`, new vec3(-9.9, 0.4, 0.6), 2.8, 2.8, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.doneEvent.invoke(i) })
     }
+    // Barra de scroll (assets de Flor): flechas arriba/abajo + botón que marca posición.
+    this.scrollRoot = this.obj(this.detailRoot, "Scrollbar", new vec3(13.4, -1.2, 1))
+    this.addImage(this.scrollRoot, "Track", TEX_SCROLL_BAR, new vec3(0, 0, 0), 2.3)
+    const thumb = this.addImage(this.scrollRoot, "Thumb", TEX_SCROLL_BTN, new vec3(0, 8, 0.3), 1.9)
+    this.scrollThumb = thumb.object
+    this.addHotspot(this.scrollRoot, "ScrollUpZone", new vec3(0, 8.6, 0.6), 3.2, 6.5, () => this.scrollTasks(-1))
+    this.addHotspot(this.scrollRoot, "ScrollDownZone", new vec3(0, -8.6, 0.6), 3.2, 6.5, () => this.scrollTasks(1))
+    this.scrollRoot.enabled = false
+
     // "+ Add a task" punteado, como en el diseño.
     const addTask = this.addImage(this.detailRoot, "AddTask", TEX_ADD_TASK, new vec3(-0.7, -16.4, 1), 20.5, 3)
     this.makeInteractive(addTask.object, 20.5, 3, () => this.openFirstEmpty())
@@ -296,9 +313,9 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.reminderOverlay.getSceneObject().enabled = false
     // El coach habla desde el globito de la nube (arriba a la derecha),
     // con texto grande e inclinado acompañando al globo.
-    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.7, 20.4, 0.9), 21, 6.4, 4.6)
+    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.7, 20.4, 0.9), 18, 5.7, 4.4)
     this.coachText.horizontalOverflow = HorizontalOverflow.Wrap
-    this.tilt(this.coachText, -25)
+    this.tilt(this.coachText, 25)
     // Popup de tiempo: total manual + estimación con IA, para la tarea seleccionada.
     this.timePopup = this.obj(this.detailRoot, "TimePopup", new vec3(0, -6, 3))
     const timePlate = this.timePopup.createComponent(BackPlate.getTypeName()) as BackPlate
@@ -306,7 +323,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     timePlate.style = "simple"
     this.tint(timePlate, CONTROL_COLOR)
     this.makeDecorative(timePlate)
-    this.addText(this.timePopup, STR.timePopupTitle, new vec3(-1.2, 4.6, 0.6), 24, 12, 2.4)
+    this.addText(this.timePopup, STR.timePopupTitle, new vec3(-1.2, 4.5, 0.6), 34, 13, 3)
     this.addSurfaceButton(this.timePopup, "TimeClose", "✕", new vec3(7.4, 4.6, 0.6), 2.6, 2.4, () => { if (this.timePopup) this.timePopup.enabled = false })
     this.timePopupMinutes = this.addText(this.timePopup, "15 min", new vec3(0, 1.6, 0.6), 34, 10, 3)
     this.addSurfaceButton(this.timePopup, "TimeM5", "−5", new vec3(-6.3, -1.4, 0.6), 3.4, 2.8, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: -5}))
@@ -319,6 +336,17 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.addSurfaceButton(this.checkInRoot, "CheckFocused", STR.checkFocused, new vec3(-5.6, 0, 0), 8, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(false) })
     this.addSurfaceButton(this.checkInRoot, "CheckDrifted", STR.checkDrifted, new vec3(5.6, 0, 0), 10.5, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(true) })
     this.checkInRoot.enabled = false
+  }
+
+  private updateScrollbar(): void {
+    if (!this.scrollRoot || !this.scrollThumb) return
+    const count = this.cards[this.selectedCard]?.tasks.length ?? 0
+    const visible = count > 4 && this.tunnelIndex === null
+    this.scrollRoot.enabled = visible
+    if (!visible) return
+    const fraction = Math.max(0, Math.min(1, this.scrollOffset / Math.max(1, count - 4)))
+    // El botón viaja entre las flechas (de +6.2 a −6.2).
+    this.scrollThumb.getTransform().setLocalPosition(new vec3(0, 6.2 - fraction * 12.4, 0.3))
   }
 
   private toggleTimePopup(): void {
@@ -395,11 +423,11 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.chipRoot = this.obj(this.sceneObject, "FocusChip", vec3.zero())
     this.addImage(this.chipRoot, "CloudChip", TEX_CLOUD, new vec3(0, 0, 0), 13)
     // Los textos van sobre el globito de la nube, grandes e inclinados con él.
-    this.chipTitle = this.addText(this.chipRoot, "", new vec3(-2.6, 2.4, 0.5), 17, 5.6, 2.4)
+    this.chipTitle = this.addText(this.chipRoot, "", new vec3(-2.6, 2.3, 0.5), 15, 5, 2.4)
     this.chipTitle.horizontalOverflow = HorizontalOverflow.Wrap
-    this.tilt(this.chipTitle, -25)
-    this.chipInfo = this.addText(this.chipRoot, "", new vec3(-2.6, 0.6, 0.5), 15, 5.6, 1.9)
-    this.tilt(this.chipInfo, -25)
+    this.tilt(this.chipTitle, 25)
+    this.chipInfo = this.addText(this.chipRoot, "", new vec3(-2.7, 0.6, 0.5), 13, 5, 1.8)
+    this.tilt(this.chipInfo, 25)
     this.chipRoot.enabled = false
   }
 
@@ -543,7 +571,10 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
       this.badgeImages[row].mainPass.baseTex = badgeTex
       this.badgeObjects[row].getTransform().setLocalScale(new vec3(5.6, 5.6 * this.aspectOf(badgeTex), 1))
     }
-    if (this.rowImages[row]) this.rowImages[row].mainPass.baseColor = task.status === "running" ? RUNNING_TINT : NORMAL_TINT
+    const tint = task.status === "running" ? RUNNING_TINT
+      : task.status === "paused" ? PAUSED_TINT
+      : actualIndex === this.selectedTask ? SELECTED_TINT : NORMAL_TINT
+    if (this.rowImages[row]) this.rowImages[row].mainPass.baseColor = tint
     if (this.playImages[row]) this.playImages[row].mainPass.baseColor = task.status === "running" ? new vec4(0.75, 0.75, 0.75, 1) : NORMAL_TINT
     this.applyTunnel()
   }
