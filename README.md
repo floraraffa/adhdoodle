@@ -35,7 +35,7 @@ Distraction isn't fought with willpower — it's fought with **environment desig
 
 ## Built with CLAD
 
-This project was pair-built by **Flor Raffa** (concept, ADHD-first design direction, full illustrated asset kit) and **Claude (Anthropic)** working inside Lens Studio through the Lens Studio MCP server — writing TypeScript, driving the scene, taking preview screenshots and verifying every feature in-loop. The complete AI-assisted process, including debugging sagas and design iteration rounds, is documented in [CLAD-LOG.md](CLAD-LOG.md).
+This project was pair-built by **Florencia Raffa** (concept, ADHD-first design direction, full illustrated asset kit) and **Claude (Anthropic)** working inside Lens Studio through the Lens Studio MCP server — writing TypeScript, driving the scene, taking preview screenshots and verifying every feature in-loop. The complete AI-assisted process, including debugging sagas and design iteration rounds, is documented in [CLAD-LOG.md](CLAD-LOG.md).
 
 ## Tech
 
@@ -53,7 +53,7 @@ This project was pair-built by **Flor Raffa** (concept, ADHD-first design direct
 
 ## Credits
 
-- **Design & art**: Flor Raffa — every illustration (notebook pages, washi strips, cloud companion, post-it, buttons) is original art.
+- **Design & art**: Florencia Raffa — every illustration (notebook pages, washi strips, cloud companion, post-it, buttons) is original art.
 - **Font**: Cheese Milky.
 - **Code**: TypeScript co-written with Claude via CLAD.
 
