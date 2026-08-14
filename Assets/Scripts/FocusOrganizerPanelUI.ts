@@ -197,10 +197,11 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private createCard(index: number): void {
     const root = this.obj(this.sceneObject, `CarouselCard-${index}`, vec3.zero())
     this.addImage(root, "Page", TEX_PAGES[index % TEX_PAGES.length], new vec3(0, 0, 0), PAGE_W, PAGE_H)
-    // Título sobre la cinta lila; fecha sobre la tira rosa; contador debajo.
-    this.addText(root, STR.categories[index], new vec3(-5.4, 20.3, 0.7), 46, 12, 3.6)
-    this.addText(root, STR.formatDate(), new vec3(-6.6, 16.5, 0.7), 18, 8.6, 1.6)
-    const summary = this.addText(root, STR.taskCount(0, 0), new vec3(-6.2, 14.4, 0.7), 18, 12, 1.5)
+    // Título grande y "bold" (outline del mismo color), inclinado con la cinta.
+    const title = this.addText(root, STR.categories[index], new vec3(-5.2, 20.2, 0.7), 58, 14, 4.2)
+    this.tiltAndBold(title, -7)
+    this.addText(root, STR.formatDate(), new vec3(-6.4, 16.5, 0.7), 25, 10.5, 2)
+    const summary = this.addText(root, STR.taskCount(0, 0), new vec3(-6, 14.3, 0.7), 25, 13, 1.9)
     // La nube (la IA) con su globito, arriba a la derecha como en el diseño.
     this.addImage(root, "Cloud", TEX_CLOUD, new vec3(8.4, 18.4, 0.6), 12, 9.4)
     const preview = this.addText(root, "", new vec3(-1, 0.5, 0.7), 30, 26, 22)
@@ -220,24 +221,27 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private createDetails(): void {
     this.detailRoot = this.obj(this.cardRoots[0], "ActiveCardTasks", vec3.zero())
     for (let row = 0; row < 4; row++) {
-      const rowRoot = this.obj(this.detailRoot, `Row-${row}`, new vec3(-0.7, ROW_Y[row], 1))
+      // Corridas a la derecha para despegarse del espiral del cuaderno.
+      const rowRoot = this.obj(this.detailRoot, `Row-${row}`, new vec3(0.6, ROW_Y[row], 1))
       this.rowRoots.push(rowRoot)
       // La tira washi entera es el botón que abre el post-it de la tarea.
       const strip = this.addImage(rowRoot, "Strip", TEX_WASHI[row % TEX_WASHI.length], new vec3(0, 0, 0), ROW_W, ROW_H)
       this.rowImages[row] = strip.image
       this.makeInteractive(strip.object, ROW_W, ROW_H, () => this.onRowPressed(this.visibleIndex(row)))
-      // Texto: título + reloj (el checkbox viene horneado en la tira), alineado
-      // a la izquierda como en la referencia.
-      this.taskLabels[row] = this.addText(rowRoot, "", new vec3(-0.9, 0.2, 0.5), 27, 15.6, 4.8)
+      // Texto pegado al círculo blanco y llevado hacia la derecha (menos vacío).
+      this.taskLabels[row] = this.addText(rowRoot, "", new vec3(0.4, 0.3, 0.5), 27, 15, 4.8)
       this.taskLabels[row].horizontalAlignment = HorizontalAlignment.Left
       // Badge de prioridad (imagen DO FIRST / NEXT / LATER).
       const badge = this.addImage(rowRoot, "Badge", TEX_BADGES[2], new vec3(6.2, -1.5, 0.5), 5.6, 1.85)
       this.badgeImages[row] = badge.image
       this.badgeObjects[row] = badge.object
-      // Play redondo del color de la fila.
+      // Play redondo del color de la fila, con "mouseover" que lo agranda.
       const play = this.addImage(rowRoot, "Play", TEX_PLAY[row % TEX_PLAY.length], new vec3(10.1, 0, 0.5), 3.4, 3.3)
       this.playImages[row] = play.image
-      this.makeInteractive(play.object, 3.8, 3.8, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.playEvent.invoke(i) })
+      const playBaseScale = play.object.getTransform().getLocalScale()
+      const playInteractable = this.makeInteractive(play.object, 3.8, 3.8, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.playEvent.invoke(i) })
+      playInteractable.onHoverEnter.add(() => play.object.getTransform().setLocalScale(playBaseScale.uniformScale(1.2)))
+      playInteractable.onHoverExit.add(() => play.object.getTransform().setLocalScale(playBaseScale))
       // Hotspot sobre el checkbox horneado (izquierda de la tira) → completar.
       this.addHotspot(rowRoot, `Done-${row}`, new vec3(-9.9, 0.4, 0.6), 2.8, 2.8, () => { const i = this.visibleIndex(row); this.selectedTask = i; this.doneEvent.invoke(i) })
     }
@@ -255,16 +259,21 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
       ["IconRemind", TEX_ICONS.remind, () => this.reminderEvent.invoke()],
       ["IconMore", TEX_ICONS.more, () => this.showMoreTasks()],
     ]
-    // Centrados dentro de la barra horneada (≈ ±14 cm de ancho útil).
-    const startX = -12.25
+    // Centrados y bien adentro de la barra; todos con la MISMA altura visual
+    // (el ancho sale de la proporción de cada PNG, así add/more no quedan gigantes).
+    const startX = -11.5
+    const iconHeight = 3.9
     for (let i = 0; i < icons.length; i++) {
       const [name, tex, action] = icons[i]
-      const icon = this.addImage(this.controlsRoot, name, tex, new vec3(startX + i * 4.9, iconY, 0.4), 3.2, 4.0)
-      this.makeInteractive(icon.object, 4.2, 4.6, action)
+      const iconWidth = iconHeight / Math.max(0.001, this.aspectOf(tex))
+      const icon = this.addImage(this.controlsRoot, name, tex, new vec3(startX + i * 4.6, iconY, 0.4), iconWidth)
+      this.makeInteractive(icon.object, 4.2, 4.4, action)
     }
-    this.reminderLabel = this.addText(this.controlsRoot, STR.bellOn(5), new vec3(7.35, -17.8, 0.4), 13, 4.6, 1.2)
-    // El coach habla desde el globito de la nube (arriba a la derecha).
-    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.6, 20.3, 0.9), 13, 5.6, 3.4)
+    this.reminderLabel = this.addText(this.controlsRoot, STR.bellOn(5), new vec3(6.9, -17.8, 0.4), 15, 4.6, 1.4)
+    // El coach habla desde el globito de la nube (arriba a la derecha),
+    // con texto grande e inclinado acompañando al globo.
+    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.7, 20.4, 0.9), 23, 6.8, 4.4)
+    this.tilt(this.coachText, -8)
     this.checkInRoot = this.obj(this.detailRoot, "CheckIn", new vec3(0, -14.2, 3))
     this.addSurfaceButton(this.checkInRoot, "CheckFocused", STR.checkFocused, new vec3(-5.6, 0, 0), 8, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(false) })
     this.addSurfaceButton(this.checkInRoot, "CheckDrifted", STR.checkDrifted, new vec3(5.6, 0, 0), 10.5, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(true) })
@@ -331,10 +340,12 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     // Hija del panel para heredar el contexto de render; su posición se pisa
     // cada frame en coordenadas de mundo para seguir a la cámara.
     this.chipRoot = this.obj(this.sceneObject, "FocusChip", vec3.zero())
-    this.addImage(this.chipRoot, "CloudChip", TEX_CLOUD, new vec3(0, 0, 0), 11, 8.6)
-    // Los textos van sobre el globito de la nube (mitad izquierda-superior del asset).
-    this.chipTitle = this.addText(this.chipRoot, "", new vec3(-2.2, 2.1, 0.5), 10, 4.6, 1.6)
-    this.chipInfo = this.addText(this.chipRoot, "", new vec3(-2.2, 0.7, 0.5), 9, 4.6, 1.4)
+    this.addImage(this.chipRoot, "CloudChip", TEX_CLOUD, new vec3(0, 0, 0), 13)
+    // Los textos van sobre el globito de la nube, grandes e inclinados con él.
+    this.chipTitle = this.addText(this.chipRoot, "", new vec3(-2.6, 2.4, 0.5), 17, 5.6, 2.2)
+    this.tilt(this.chipTitle, -8)
+    this.chipInfo = this.addText(this.chipRoot, "", new vec3(-2.6, 0.8, 0.5), 15, 5.6, 1.9)
+    this.tilt(this.chipInfo, -8)
     this.chipRoot.enabled = false
   }
 
@@ -592,7 +603,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.makeInteractive(object, width, height, press)
   }
 
-  private makeInteractive(object: SceneObject, width: number, height: number, press: () => void): void {
+  private makeInteractive(object: SceneObject, width: number, height: number, press: () => void): Interactable {
     const collider = object.createComponent("Physics.ColliderComponent") as ColliderComponent
     const shape = Shape.createBoxShape()
     // Si el objeto está escalado (imágenes), el collider hereda la escala → compensar.
@@ -601,6 +612,20 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     collider.shape = shape
     const interactable = object.createComponent(Interactable.getTypeName()) as Interactable
     interactable.onTriggerEnd.add(press)
+    return interactable
+  }
+
+  /** Inclina un texto para que acompañe a su contenedor dibujado. */
+  private tilt(text: Text, degrees: number): void {
+    text.getSceneObject().getTransform().setLocalRotation(quat.angleAxis((degrees * Math.PI) / 180, new vec3(0, 0, 1)))
+  }
+
+  /** Título: inclinado + "bold" simulado con contorno del mismo color. */
+  private tiltAndBold(text: Text, degrees: number): void {
+    this.tilt(text, degrees)
+    text.outlineSettings.enabled = true
+    text.outlineSettings.size = 0.14
+    text.outlineSettings.fill.color = TEXT_COLOR
   }
 
   private addSurfaceButton(parent: SceneObject, name: string, label: string, position: vec3, width: number, height: number, press: () => void, capturePlate?: (plate: BackPlate) => void): Text {

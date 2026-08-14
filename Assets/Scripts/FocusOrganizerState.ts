@@ -145,7 +145,13 @@ export class FocusOrganizerState {
     if (!task) return null
     task.status = "done"
     task.remainingSeconds = task.durationMinutes * 60
-    this.selectedTaskIndex = index
+    // La tarea hecha baja al final de la lista: la siguiente pendiente sube
+    // automáticamente a prioridad 1 (DO FIRST).
+    const tasks = this.activeCard.tasks
+    tasks.splice(index, 1)
+    tasks.push(task)
+    this.refreshPriorities(tasks)
+    this.selectedTaskIndex = Math.min(index, Math.max(0, tasks.length - 1))
     return task
   }
 
