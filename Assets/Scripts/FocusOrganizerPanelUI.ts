@@ -341,7 +341,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.reminderOverlay.getSceneObject().enabled = false
     // El coach habla desde el globito de la nube (arriba a la derecha),
     // con texto grande e inclinado acompañando al globo.
-    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.2, 20.5, 0.9), 15, 4.9, 3.2)
+    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.7, 20.3, 0.9), 15, 4.8, 2.4)
     this.coachText.horizontalOverflow = HorizontalOverflow.Wrap
     this.tilt(this.coachText, 6)
     // Popup de tiempo: total manual + estimación con IA, para la tarea seleccionada.
@@ -598,18 +598,18 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     // ✕ horneado arriba a la derecha → hotspot.
     this.addHotspot(this.notePaper, "NoteClose", new vec3(5.6, 10.4, 0.7), 3, 3, () => this.closeNotePaper())
     // Layout de la referencia: todo en la mitad superior del papel.
-    this.noteTitle = this.addText(this.notePaper, "", new vec3(-0.6, 7.4, 0.7), 34, 16.5, 3)
-    this.noteAbout = this.addText(this.notePaper, "", new vec3(-4.2, 5.5, 0.7), 20, 8.5, 2)
-    const badge = this.addImage(this.notePaper, "NoteBadge", TEX_BADGES[0], new vec3(3.4, 5.5, 0.7), 5.4)
+    this.noteTitle = this.addText(this.notePaper, "", new vec3(-0.6, 8.7, 0.7), 34, 16.5, 3)
+    this.noteAbout = this.addText(this.notePaper, "", new vec3(-4.2, 6.9, 0.7), 20, 8.5, 2)
+    const badge = this.addImage(this.notePaper, "NoteBadge", TEX_BADGES[0], new vec3(3.4, 6.9, 0.7), 5.4)
     this.noteBadgeImage = badge.image
     this.noteBadgeObject = badge.object
-    const breakTitle = this.addText(this.notePaper, STR.breakItDown, new vec3(-3.4, 3.8, 0.7), 24, 10.5, 2.2)
-    breakTitle.textFill.color = new vec4(0.2, 0.3, 0.85, 1)
-    // Caja blanca de notas: adentro del papel y con el ángulo del dibujo.
-    this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(-0.3, 1.7, 0.7), 15.5, 2.9, () => this.openNoteKeyboard())
-    // La caja blanca entera (placa + texto) con el ángulo del dibujo de fondo.
+    // Caja de notas grande y translúcida: ocupa hasta el + add step, así entran
+    // muchas líneas sin achicar el texto. Nota + pasos ☐ conviven acá.
+    this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(-0.3, 1.7, 0.7), 16, 8.6, () => this.openNoteKeyboard(), (plate) => this.setPlateOpacity(plate, 0.5))
     this.noteBody.getSceneObject().getParent()!.getTransform().setLocalRotation(quat.angleAxis((2 * Math.PI) / 180, new vec3(0, 0, 1)))
+    this.noteBody.horizontalOverflow = HorizontalOverflow.Wrap
     this.noteSteps = this.addText(this.notePaper, "", new vec3(-0.3, -1.1, 0.7), 18, 16, 3.6)
+    this.noteSteps.getSceneObject().enabled = false
     const addStep = this.addImage(this.notePaper, "AddStep", TEX_POSTIT.addStep, new vec3(-0.3, -3.7, 0.7), 8.2)
     this.makeInteractive(addStep.object, 8.6, 2.4, () => this.openNoteKeyboard())
     // Fila desplegable de tiempo (icono time): pisa la zona del add-step.
@@ -628,9 +628,9 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     ]
     for (let i = 0; i < postitButtons.length; i++) {
       const [name, tex, action] = postitButtons[i]
-      const xs = [-8.1, -2.7, 2.7, 8.1]
-      const btn = this.addImage(this.notePaper, name, tex, new vec3(xs[i], -6.3, 0.7), 4)
-      this.makeInteractive(btn.object, 4.4, 4.4, action)
+      const xs = [-6.6, -2.2, 2.2, 6.6] // bien adentro del papel amarillo
+      const btn = this.addImage(this.notePaper, name, tex, new vec3(xs[i], -6.1, 0.7), 3.6)
+      this.makeInteractive(btn.object, 4, 4, action)
     }
     this.notePaper.enabled = false
   }
@@ -664,8 +664,12 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
       this.noteBadgeImage.mainPass.baseTex = badgeTex
       this.noteBadgeObject.getTransform().setLocalScale(new vec3(5.4, 5.4 * this.aspectOf(badgeTex), 1))
     }
-    if (this.noteBody) this.noteBody.text = task.note.length > 0 ? task.note : STR.notePlaceholder
-    if (this.noteSteps) this.noteSteps.text = task.aiSteps.map((step) => `☐ ${step}`).join("\n")
+    if (this.noteBody) {
+      const lines: string[] = []
+      if (task.note.length > 0) lines.push(task.note)
+      for (const step of task.aiSteps) lines.push(`☐ ${step}`)
+      this.noteBody.text = lines.length > 0 ? lines.join("\n") : STR.notePlaceholder
+    }
     if (this.noteEstimate) this.noteEstimate.text = `⏱ ${task.durationMinutes}m`
   }
 
@@ -881,6 +885,10 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
       p.roundedRectangle.opacity = 1
     })
   }
+  private setPlateOpacity(plate: BackPlate, opacity: number): void {
+    plate.onInitialized.add(() => { (plate as unknown as PlateInternals).roundedRectangle.opacity = opacity })
+  }
+
   private disableInteractionPlane(plate: BackPlate): void { ;(plate as unknown as PlateInternals)._enableInteractionPlane = false }
   private makeDecorative(plate: BackPlate): void {
     this.disableInteractionPlane(plate)
