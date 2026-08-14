@@ -143,6 +143,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private musicAudio: AudioComponent | null = null
   private musicIndex = 0
   private musicPlaying = false
+  private musicSince = 0
   private selectedCard = 0
   private selectedTask = 0
   private scrollOffset = 0
@@ -474,18 +475,20 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private toggleMusicUnsafe(): void {
     if (this.meditationTracks.length === 0) return
     if (this.musicPlaying) {
-      // Primero la bandera: en algunos runtimes pause() dispara onFinish y la
-      // playlist automática relanzaba la pista → "el pause no anda".
       this.musicPlaying = false
-      this.musicAudio?.pause()
+      try { this.musicAudio?.pause() } catch (error) { print(`[Music] pause: ${error}`) }
       this.refreshMusicPopup()
       return
     }
     this.musicPlaying = true
-    if (this.musicAudio && this.musicAudio.audioTrack === this.meditationTracks[this.musicIndex] && this.musicAudio.resume()) {
-      this.refreshMusicPopup()
-      return
-    }
+    // Si es la misma pista y estaba pausada, retomar; si no, arrancar de cero.
+    let resumed = false
+    try {
+      if (this.musicAudio && this.musicAudio.audioTrack === this.meditationTracks[this.musicIndex] && this.musicAudio.isPaused()) {
+        resumed = this.musicAudio.resume()
+      }
+    } catch (error) { print(`[Music] resume: ${error}`) }
+    if (resumed) { this.musicSince = 2; this.refreshMusicPopup(); return }
     this.startTrack()
   }
 
@@ -498,34 +501,36 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     } catch (error) { print(`[Music] error en next: ${error}`) }
   }
 
-  // Reproduce la pista actual UNA vez; al terminar avanza sola a la siguiente
-  // (playlist continua, nunca la misma canción en loop).
-  private stopMusicComponent(): void {
-    if (!this.musicAudio) return
-    try { if (this.musicAudio.isPlaying()) this.musicAudio.stop(false) } catch (error) { print(`[Music] stop: ${error}`) }
-    try { this.musicAudio.destroy() } catch (error) { print(`[Music] destroy: ${error}`) }
-    this.musicAudio = null
-  }
-
+  // UN solo AudioComponent reutilizado. Regla de oro: SIEMPRE stop() antes de
+  // cambiar la pista (cambiarla sonando crasheaba; destruir el componente no
+  // cortaba el sonido y las canciones se superponían).
   private startTrack(): void {
     const track = this.meditationTracks[this.musicIndex]
     if (!track) { this.musicPlaying = false; return }
-    // Un AudioComponent NUEVO por pista: cambiar audioTrack con audio sonando
-    // crasheaba el runtime nativo (el "next" tiraba la lente entera).
-    this.stopMusicComponent()
-    const audio = this.sceneObject.createComponent("Component.AudioComponent") as AudioComponent
-    audio.volume = 0.5
-    audio.audioTrack = track
-    audio.setOnFinish(() => {
-      try {
-        if (!this.musicPlaying || this.musicAudio !== audio || this.meditationTracks.length === 0) return
-        this.musicIndex = (this.musicIndex + 1) % this.meditationTracks.length
-        this.startTrack()
-      } catch (error) { print(`[Music] error al avanzar: ${error}`) }
-    })
-    this.musicAudio = audio
-    audio.play(1)
+    if (!this.musicAudio) {
+      this.musicAudio = this.sceneObject.createComponent("Component.AudioComponent") as AudioComponent
+      this.musicAudio.volume = 0.5
+    }
+    try { if (this.musicAudio.isPlaying() || this.musicAudio.isPaused()) this.musicAudio.stop(false) } catch (error) { print(`[Music] stop: ${error}`) }
+    this.musicAudio.audioTrack = track
+    this.musicAudio.play(1)
+    this.musicSince = 0
     this.refreshMusicPopup()
+  }
+
+  /** Avance automático por sondeo (el callback de fin de pista no dispara en
+   *  este runtime): si la playlist está activa y el audio dejó de sonar solo,
+   *  pasa a la siguiente canción. Se llama cada frame. */
+  private updateMusicAutoAdvance(): void {
+    if (!this.musicPlaying || !this.musicAudio || this.meditationTracks.length === 0) return
+    this.musicSince += getDeltaTime()
+    if (this.musicSince < 2) return
+    let stillPlaying = true
+    try { stillPlaying = this.musicAudio.isPlaying() } catch (_) { return }
+    if (!stillPlaying) {
+      this.musicIndex = (this.musicIndex + 1) % this.meditationTracks.length
+      this.startTrack()
+    }
   }
 
   // ——— Intro del logo + tutorial de la nube ———
@@ -941,6 +946,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   }
 
   private animateCarousel(): void {
+    this.updateMusicAutoAdvance()
     this.updateIntro()
     this.tutorialFollow()
     this.followCamera()
