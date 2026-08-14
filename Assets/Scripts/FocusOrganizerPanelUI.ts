@@ -464,6 +464,10 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   }
 
   private toggleMusic(): void {
+    try { this.toggleMusicUnsafe() } catch (error) { print(`[Music] error en toggle: ${error}`) }
+  }
+
+  private toggleMusicUnsafe(): void {
     if (this.meditationTracks.length === 0) return
     if (this.musicPlaying) {
       // Primero la bandera: en algunos runtimes pause() dispara onFinish y la
@@ -482,26 +486,32 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   }
 
   private nextMusic(): void {
-    if (this.meditationTracks.length === 0) return
-    this.musicIndex = (this.musicIndex + 1) % this.meditationTracks.length
-    if (this.musicPlaying) this.startTrack()
-    else this.refreshMusicPopup()
+    try {
+      if (this.meditationTracks.length === 0) return
+      this.musicIndex = (this.musicIndex + 1) % this.meditationTracks.length
+      if (this.musicPlaying) this.startTrack()
+      else this.refreshMusicPopup()
+    } catch (error) { print(`[Music] error en next: ${error}`) }
   }
 
   // Reproduce la pista actual UNA vez; al terminar avanza sola a la siguiente
   // (playlist continua, nunca la misma canción en loop).
   private startTrack(): void {
+    const track = this.meditationTracks[this.musicIndex]
+    if (!track) { this.musicPlaying = false; return }
     if (!this.musicAudio) {
       this.musicAudio = this.sceneObject.createComponent("Component.AudioComponent") as AudioComponent
       this.musicAudio.volume = 0.5
     }
-    this.musicAudio.audioTrack = this.meditationTracks[this.musicIndex]
+    this.musicAudio.audioTrack = track
     this.musicAudio.play(1)
     this.musicAudio.setOnFinish(() => {
-      if (!this.musicPlaying) return
-      this.musicIndex = (this.musicIndex + 1) % this.meditationTracks.length
-      this.startTrack()
-      this.refreshMusicPopup()
+      try {
+        if (!this.musicPlaying || this.meditationTracks.length === 0) return
+        this.musicIndex = (this.musicIndex + 1) % this.meditationTracks.length
+        this.startTrack()
+        this.refreshMusicPopup()
+      } catch (error) { print(`[Music] error al avanzar: ${error}`) }
     })
     this.refreshMusicPopup()
   }
@@ -739,6 +749,9 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     // Post-it con el fondo ilustrado de Flor. Se dibuja en DOS capas para
     // quitarle transparencia (el PNG solo queda translúcido sobre la página).
     this.notePaper = this.obj(this.sceneObject, "NotePaper", new vec3(10, 4, 6))
+    // Como un post-it real: lo agarrás con pinch y lo pegás donde quieras.
+    this.makeInteractive(this.notePaper, 23, 21, () => {})
+    this.notePaper.createComponent(InteractableManipulation.getTypeName())
     this.addImage(this.notePaper, "FondoBack", TEX_POSTIT.fondo, new vec3(0, 0, -0.1), 24)
     this.addImage(this.notePaper, "Fondo", TEX_POSTIT.fondo, new vec3(0, 0, 0), 24)
     // ✕ horneado arriba a la derecha → hotspot.
