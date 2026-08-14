@@ -341,7 +341,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.reminderOverlay.getSceneObject().enabled = false
     // El coach habla desde el globito de la nube (arriba a la derecha),
     // con texto grande e inclinado acompañando al globo.
-    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.8, 20.5, 0.9), 15, 4.9, 3.2)
+    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.2, 20.5, 0.9), 15, 4.9, 3.2)
     this.coachText.horizontalOverflow = HorizontalOverflow.Wrap
     this.tilt(this.coachText, 6)
     // Popup de tiempo: total manual + estimación con IA, para la tarea seleccionada.
@@ -590,31 +590,36 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   // ——— Papelito de tarea: notas + estimación IA ———
 
   private createNotePaper(): void {
-    // Post-it con el fondo ilustrado de Flor (washi, ✕, nube "You got this!").
+    // Post-it con el fondo ilustrado de Flor. Se dibuja en DOS capas para
+    // quitarle transparencia (el PNG solo queda translúcido sobre la página).
     this.notePaper = this.obj(this.sceneObject, "NotePaper", new vec3(10, 4, 6))
+    this.addImage(this.notePaper, "FondoBack", TEX_POSTIT.fondo, new vec3(0, 0, -0.1), 24)
     this.addImage(this.notePaper, "Fondo", TEX_POSTIT.fondo, new vec3(0, 0, 0), 24)
     // ✕ horneado arriba a la derecha → hotspot.
     this.addHotspot(this.notePaper, "NoteClose", new vec3(5.6, 10.4, 0.7), 3, 3, () => this.closeNotePaper())
-    this.noteTitle = this.addText(this.notePaper, "", new vec3(-0.6, 6.6, 0.7), 34, 16.5, 3)
-    this.noteAbout = this.addText(this.notePaper, "", new vec3(-4, 4.4, 0.7), 20, 8.5, 2)
-    const badge = this.addImage(this.notePaper, "NoteBadge", TEX_BADGES[0], new vec3(3.4, 4.4, 0.7), 5.4)
+    // Layout de la referencia: todo en la mitad superior del papel.
+    this.noteTitle = this.addText(this.notePaper, "", new vec3(-0.6, 7.4, 0.7), 34, 16.5, 3)
+    this.noteAbout = this.addText(this.notePaper, "", new vec3(-4.2, 5.5, 0.7), 20, 8.5, 2)
+    const badge = this.addImage(this.notePaper, "NoteBadge", TEX_BADGES[0], new vec3(3.4, 5.5, 0.7), 5.4)
     this.noteBadgeImage = badge.image
     this.noteBadgeObject = badge.object
-    const breakTitle = this.addText(this.notePaper, STR.breakItDown, new vec3(-3.2, 2.4, 0.7), 24, 10.5, 2.2)
+    const breakTitle = this.addText(this.notePaper, STR.breakItDown, new vec3(-3.4, 3.8, 0.7), 24, 10.5, 2.2)
     breakTitle.textFill.color = new vec4(0.2, 0.3, 0.85, 1)
-    // Nota libre (tap para escribir) y pasos de la IA como checklist.
-    this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(0, 0.4, 0.7), 17, 3.2, () => this.openNoteKeyboard())
-    this.noteSteps = this.addText(this.notePaper, "", new vec3(0, -2.6, 0.7), 18, 17, 4)
-    const addStep = this.addImage(this.notePaper, "AddStep", TEX_POSTIT.addStep, new vec3(0, -5.4, 0.7), 8.2)
+    // Caja blanca de notas: adentro del papel y con el ángulo del dibujo.
+    this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(-0.3, 1.7, 0.7), 15.5, 2.9, () => this.openNoteKeyboard())
+    // La caja blanca entera (placa + texto) con el ángulo del dibujo de fondo.
+    this.noteBody.getSceneObject().getParent()!.getTransform().setLocalRotation(quat.angleAxis((2 * Math.PI) / 180, new vec3(0, 0, 1)))
+    this.noteSteps = this.addText(this.notePaper, "", new vec3(-0.3, -1.1, 0.7), 18, 16, 3.6)
+    const addStep = this.addImage(this.notePaper, "AddStep", TEX_POSTIT.addStep, new vec3(-0.3, -3.7, 0.7), 8.2)
     this.makeInteractive(addStep.object, 8.6, 2.4, () => this.openNoteKeyboard())
-    // Fila desplegable de tiempo: aparece al tocar el icono time.
-    this.noteTimeRow = this.obj(this.notePaper, "TimeRow", new vec3(0, -5.4, 1.1))
+    // Fila desplegable de tiempo (icono time): pisa la zona del add-step.
+    this.noteTimeRow = this.obj(this.notePaper, "TimeRow", new vec3(0, -3.7, 1.1))
     this.addSurfaceButton(this.noteTimeRow, "NoteMinus", "−", new vec3(-8.2, 0, 0), 2.6, 2.6, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: -1}))
     this.noteEstimate = this.addText(this.noteTimeRow, "⏱ 15m", new vec3(-4.4, 0, 0), 22, 4.8, 2.6)
     this.addSurfaceButton(this.noteTimeRow, "NotePlus", "+", new vec3(-0.7, 0, 0), 2.6, 2.6, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: 1}))
     this.addSurfaceButton(this.noteTimeRow, "NoteEstimate", STR.estimateButton, new vec3(5.4, 0, 0), 8.2, 2.6, () => this.estimateEvent.invoke(this.noteTaskIndex))
     this.noteTimeRow.enabled = false
-    // Botonera del post-it: edit / time / remind / delete (iconos de Flor).
+    // Botonera adentro del papel, pareja como en la referencia (la nube asoma detrás).
     const postitButtons: [string, Texture, () => void][] = [
       ["PEdit", TEX_POSTIT.edit, () => this.openKeyboard(this.noteTaskIndex)],
       ["PTime", TEX_POSTIT.time, () => { if (this.noteTimeRow) this.noteTimeRow.enabled = !this.noteTimeRow.enabled }],
@@ -623,9 +628,9 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     ]
     for (let i = 0; i < postitButtons.length; i++) {
       const [name, tex, action] = postitButtons[i]
-      const xs = [-9.2, -6, -2.8, 9.4] // delete a la derecha, lejos de la nube "You got this!"
-      const btn = this.addImage(this.notePaper, name, tex, new vec3(xs[i], -8.7, 0.7), 3.4)
-      this.makeInteractive(btn.object, 3.8, 3.8, action)
+      const xs = [-8.1, -2.7, 2.7, 8.1]
+      const btn = this.addImage(this.notePaper, name, tex, new vec3(xs[i], -6.3, 0.7), 4)
+      this.makeInteractive(btn.object, 4.4, 4.4, action)
     }
     this.notePaper.enabled = false
   }

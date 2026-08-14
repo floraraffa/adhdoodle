@@ -75,3 +75,17 @@ Flor produced the full asset kit (notebook pages with baked tabs/spiral per cate
 - **The AI coach now speaks from the cloud's bubble** — its real RSG-generated messages render inside the mascot's speech balloon, and the Focus-Mode companion chip is now the cloud itself with the timer in its bubble.
 - Localized date on the page header; priority badges render as the design's stamped labels; done tasks show ✓ and drop their badge.
 - Debug note: preview camera exploration required querying the runtime scene for the panel's world position (0,0,−110) after camera moves lost it.
+
+## Day 2, sessions 2-6 — Aug 14, 2026 (design iteration marathon with Flor)
+
+Five rapid review rounds between Flor (design direction + asset production) and Claude (integration), all verified visually in preview between rounds:
+
+- Kawaii notebook skin: notebook pages per category with baked side tabs (tap hotspots), washi strip tasks with baked-checkbox hotspots, badge stamps, per-row colored play buttons with hover growth, round icon bar.
+- The Cheese Milky handwritten font shipped across the whole lens at 1.5x scale, with aspect-ratio-safe image rendering (heights always derived from each PNG's true proportions — deformation became impossible).
+- Iterated per Flor's screenshots: title tilt direction/steepness (settled at a +6 deg rise), texts contained inside the cloud's speech bubble, task text centered on strips and clear of the notebook spiral, date centering, uniform icon sizes inset in the bar.
+- Completing a task sinks it and promotes the next to DO FIRST; selected tasks gray slightly, paused tasks gray fully.
+- The floating bell label became a shrinking translucent countdown disc over the remind icon (green -> red).
+- The time icon opens a popup: manual total (-5/-1/+1/+5) plus an explicit "Estimate with AI" button.
+- "more" opens a mini meditation music player (Flor loads 3 tracks via the panel's meditationTracks input; play/pause/next, looping).
+- Flor's scrollbar assets wired: arrow zones page the list and the violet thumb is pinch-draggable, clamped to its track, scrolling live (appears with 5+ tasks).
+- The task post-it rebuilt on Flor's illustrated background exactly per her reference: big title, "about N min" + priority badge, blue "Break it down!" with the AI micro-steps as a checklist, add-step, and edit/time (collapsible -/+/estimate)/remind/delete buttons — task deletion added to state. Background double-layered to kill translucency.
