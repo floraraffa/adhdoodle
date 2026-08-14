@@ -110,6 +110,15 @@ export class FocusOrganizerState {
     task.aiSteps = steps.slice(0, 6).map((step) => step.substring(0, 120))
   }
 
+  deleteTask(index: number): boolean {
+    const tasks = this.activeCard.tasks
+    if (index < 0 || index >= tasks.length) return false
+    tasks.splice(index, 1)
+    this.refreshPriorities(tasks)
+    this.selectedTaskIndex = Math.min(this.selectedTaskIndex, Math.max(0, tasks.length - 1))
+    return true
+  }
+
   registerDrift(cardIndex: number, taskIndex: number): number {
     const task = this.cards[cardIndex]?.tasks[taskIndex]
     if (!task) return 0

@@ -41,6 +41,14 @@ const TEX_ICONS = {
 const TEX_CLOUD = requireAsset("../DesignAssets/cloud.png") as Texture
 const TEX_SCROLL_BAR = requireAsset("../DesignAssets/scroll-bar.png") as Texture
 const TEX_SCROLL_BTN = requireAsset("../DesignAssets/scroll-button.png") as Texture
+const TEX_POSTIT = {
+  edit: requireAsset("../DesignAssets/postit-edit.png") as Texture,
+  time: requireAsset("../DesignAssets/postit-time.png") as Texture,
+  remind: requireAsset("../DesignAssets/postit-remind.png") as Texture,
+  del: requireAsset("../DesignAssets/postit-delete.png") as Texture,
+  close: requireAsset("../DesignAssets/postit-close.png") as Texture,
+  addStep: requireAsset("../DesignAssets/postit-add-step.png") as Texture,
+}
 // Los Image creados en runtime no traen material: se clona el del UIKit.
 const IMAGE_MATERIAL = requireAsset("../../Packages/SpectaclesUIKit.lspkg/Materials/Image.mat") as Material
 // Tipografía handscript del diseño (Cheese Milky) — grande, como en la referencia.
@@ -85,6 +93,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private readonly estimateEvent = new Event<number>()
   private readonly checkInEvent = new Event<boolean>()
   private readonly cardSelectEvent = new Event<number>()
+  private readonly deleteEvent = new Event<number>()
 
   private cardRoots: SceneObject[] = []
   private cardSummaries: Text[] = []
@@ -106,6 +115,12 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private timePopupMinutes: Text | null = null
   private scrollRoot: SceneObject | null = null
   private scrollThumb: SceneObject | null = null
+  @input meditationTracks: AudioTrackAsset[] = []
+  private musicPopup: SceneObject | null = null
+  private musicLabel: Text | null = null
+  private musicAudio: AudioComponent | null = null
+  private musicIndex = 0
+  private musicPlaying = false
   private selectedCard = 0
   private selectedTask = 0
   private scrollOffset = 0
@@ -117,6 +132,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private noteBody: Text | null = null
   private noteSteps: Text | null = null
   private noteEstimate: Text | null = null
+  private noteTimeRow: SceneObject | null = null
   private rowRoots: SceneObject[] = []
   private controlsRoot: SceneObject | null = null
   private checkInRoot: SceneObject | null = null
@@ -148,6 +164,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   get onFocusDone(): PublicApi<void> { return this.focusDoneEvent.publicApi() }
   /** Tap en los tabs laterales del cuaderno (HOME / WORK / ME TIME). */
   get onCardSelected(): PublicApi<number> { return this.cardSelectEvent.publicApi() }
+  get onDelete(): PublicApi<number> { return this.deleteEvent.publicApi() }
 
   onAwake(): void {
     const authored = this.sceneObject.getTransform().getLocalPosition()
@@ -228,8 +245,8 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.addImage(root, "Page", TEX_PAGES[index % TEX_PAGES.length], new vec3(0, 0, 0), PAGE_W, PAGE_H)
     // Título grande y "bold" (outline del mismo color), inclinado con la cinta.
     const title = this.addText(root, STR.categories[index], new vec3(-5.2, 20.1, 0.7), 62, 12.5, 4)
-    this.tiltAndBold(title, 25)
-    this.addText(root, STR.formatDate(), new vec3(-6.4, 16.1, 0.7), 25, 10.5, 2)
+    this.tiltAndBold(title, 10)
+    this.addText(root, STR.formatDate(), new vec3(-6.4, 16.35, 0.7), 25, 10.5, 2)
     const summary = this.addText(root, STR.taskCount(0, 0), new vec3(-6, 14.3, 0.7), 25, 13, 1.9)
     // La nube (la IA) con su globito, arriba a la derecha como en el diseño.
     this.addImage(root, "Cloud", TEX_CLOUD, new vec3(8.4, 18.4, 0.6), 12, 9.4)
@@ -295,7 +312,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
       ["IconPriDown", TEX_ICONS.priorityDown, () => this.movePriorityEvent.invoke({taskIndex: this.selectedTask, direction: 1})],
       ["IconTime", TEX_ICONS.time, () => this.toggleTimePopup()],
       ["IconRemind", TEX_ICONS.remind, () => this.reminderEvent.invoke()],
-      ["IconMore", TEX_ICONS.more, () => this.showMoreTasks()],
+      ["IconMore", TEX_ICONS.more, () => this.toggleMusicPopup()],
     ]
     // Centrados y bien adentro de la barra; todos con la MISMA altura visual
     // (el ancho sale de la proporción de cada PNG, así add/more no quedan gigantes).
@@ -315,7 +332,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     // con texto grande e inclinado acompañando al globo.
     this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.7, 20.4, 0.9), 18, 5.7, 4.4)
     this.coachText.horizontalOverflow = HorizontalOverflow.Wrap
-    this.tilt(this.coachText, 25)
+    this.tilt(this.coachText, 10)
     // Popup de tiempo: total manual + estimación con IA, para la tarea seleccionada.
     this.timePopup = this.obj(this.detailRoot, "TimePopup", new vec3(0, -6, 3))
     const timePlate = this.timePopup.createComponent(BackPlate.getTypeName()) as BackPlate
@@ -332,6 +349,19 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.addSurfaceButton(this.timePopup, "TimeP5", "+5", new vec3(6, -1.4, 0.6), 3.4, 2.8, () => this.timeEvent.invoke({taskIndex: this.selectedTask, delta: 5}))
     this.addSurfaceButton(this.timePopup, "TimeAI", STR.estimateAI, new vec3(0, -4.7, 0.6), 14, 3, () => { this.estimateEvent.invoke(this.selectedTask); if (this.timePopup) this.timePopup.enabled = false })
     this.timePopup.enabled = false
+    // Popup del reproductor de meditación.
+    this.musicPopup = this.obj(this.detailRoot, "MusicPopup", new vec3(0, -8, 3))
+    const musicPlate = this.musicPopup.createComponent(BackPlate.getTypeName()) as BackPlate
+    musicPlate.size = new vec2(19, 10)
+    musicPlate.style = "simple"
+    this.tint(musicPlate, CONTROL_COLOR)
+    this.makeDecorative(musicPlate)
+    this.addText(this.musicPopup, "🧘 Meditation", new vec3(-1.4, 3.1, 0.6), 30, 13, 2.8)
+    this.addSurfaceButton(this.musicPopup, "MusicClose", "✕", new vec3(7.9, 3.1, 0.6), 2.6, 2.4, () => { if (this.musicPopup) this.musicPopup.enabled = false })
+    this.musicLabel = this.addText(this.musicPopup, "", new vec3(0, 0.4, 0.6), 18, 16, 2.6)
+    this.addSurfaceButton(this.musicPopup, "MusicPlay", "▶ / Ⅱ", new vec3(-4, -2.8, 0.6), 6.5, 3, () => this.toggleMusic())
+    this.addSurfaceButton(this.musicPopup, "MusicNext", "⏭ next", new vec3(4, -2.8, 0.6), 6.5, 3, () => this.nextMusic())
+    this.musicPopup.enabled = false
     this.checkInRoot = this.obj(this.detailRoot, "CheckIn", new vec3(0, -14.2, 3))
     this.addSurfaceButton(this.checkInRoot, "CheckFocused", STR.checkFocused, new vec3(-5.6, 0, 0), 8, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(false) })
     this.addSurfaceButton(this.checkInRoot, "CheckDrifted", STR.checkDrifted, new vec3(5.6, 0, 0), 10.5, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(true) })
@@ -360,24 +390,61 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     if (this.timePopupMinutes) this.timePopupMinutes.text = task ? `${task.durationMinutes} min` : "—"
   }
 
-  // "more" = ver más tareas: baja por la lista y al llegar al final vuelve al inicio.
-  private showMoreTasks(): void {
-    const count = this.cards[this.selectedCard]?.tasks.length ?? 0
-    if (count <= 4) return
-    if (this.scrollOffset >= count - 4) {
-      this.scrollOffset = -1
-      this.scrollTasks(1)
-    } else {
-      this.scrollTasks(1)
+  // ——— Mini reproductor de música para meditar (popup del botón "more") ———
+  // Las pistas se cargan a mano en el editor: input "meditationTracks" del panel.
+
+  private toggleMusicPopup(): void {
+    if (!this.musicPopup) return
+    this.musicPopup.enabled = !this.musicPopup.enabled
+    if (this.musicPopup.enabled) this.refreshMusicPopup()
+  }
+
+  private refreshMusicPopup(): void {
+    if (!this.musicLabel) return
+    if (this.meditationTracks.length === 0) {
+      this.musicLabel.text = "Add tracks in Lens Studio →\nmeditationTracks"
+      return
     }
+    const name = this.meditationTracks[this.musicIndex]?.name ?? ""
+    this.musicLabel.text = `♪ ${this.musicIndex + 1}/${this.meditationTracks.length}  ${name.substring(0, 18)}${this.musicPlaying ? "" : "  (Ⅱ)"}`
+  }
+
+  private toggleMusic(): void {
+    if (this.meditationTracks.length === 0) return
+    if (!this.musicAudio) {
+      this.musicAudio = this.sceneObject.createComponent("Component.AudioComponent") as AudioComponent
+      this.musicAudio.volume = 0.5
+    }
+    if (this.musicPlaying) {
+      this.musicAudio.pause()
+      this.musicPlaying = false
+    } else {
+      if (this.musicAudio.audioTrack !== this.meditationTracks[this.musicIndex]) {
+        this.musicAudio.audioTrack = this.meditationTracks[this.musicIndex]
+        this.musicAudio.play(-1)
+      } else if (!this.musicAudio.resume()) {
+        this.musicAudio.play(-1)
+      }
+      this.musicPlaying = true
+    }
+    this.refreshMusicPopup()
+  }
+
+  private nextMusic(): void {
+    if (this.meditationTracks.length === 0) return
+    this.musicIndex = (this.musicIndex + 1) % this.meditationTracks.length
+    if (this.musicAudio && this.musicPlaying) {
+      this.musicAudio.audioTrack = this.meditationTracks[this.musicIndex]
+      this.musicAudio.play(-1)
+    }
+    this.refreshMusicPopup()
   }
 
   // ——— Focus Mode: espacio visual limpio — solo la tarea y el reloj ———
 
   private createFocusView(): void {
     this.focusRoot = this.obj(this.sceneObject, "FocusView", new vec3(0, 0, 2))
-    this.focusTitle = this.addText(this.focusRoot, "", new vec3(0, 8, 0), 64, 44, 5)
-    this.focusClock = this.addText(this.focusRoot, "", new vec3(0, 0, 0), 46, 44, 4)
+    // La tarea y el reloj viven en la nube compañera; acá solo el nudge y los botones.
     this.focusNudge = this.addText(this.focusRoot, "", new vec3(0, -7, 0), 30, 40, 3)
     this.addSurfaceButton(this.focusRoot, "FocusPause", STR.focusPause, new vec3(-6.5, -16, 0), 9, 3.2, () => this.focusPauseEvent.invoke())
     this.addSurfaceButton(this.focusRoot, "FocusDone", STR.focusDone, new vec3(6.5, -16, 0), 9, 3.2, () => this.focusDoneEvent.invoke())
@@ -392,6 +459,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
       this.closeNotePaper()
       this.hideCheckIn()
       if (this.timePopup) this.timePopup.enabled = false
+      if (this.musicPopup) this.musicPopup.enabled = false
       if (this.focusNudge) this.focusNudge.text = ""
       for (const root of this.cardRoots) root.enabled = false
     } else {
@@ -425,9 +493,9 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     // Los textos van sobre el globito de la nube, grandes e inclinados con él.
     this.chipTitle = this.addText(this.chipRoot, "", new vec3(-2.6, 2.3, 0.5), 15, 5, 2.4)
     this.chipTitle.horizontalOverflow = HorizontalOverflow.Wrap
-    this.tilt(this.chipTitle, 25)
+    this.tilt(this.chipTitle, 10)
     this.chipInfo = this.addText(this.chipRoot, "", new vec3(-2.7, 0.6, 0.5), 13, 5, 1.8)
-    this.tilt(this.chipInfo, 25)
+    this.tilt(this.chipInfo, 10)
     this.chipRoot.enabled = false
   }
 
@@ -499,16 +567,32 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     plate.style = "simple"
     this.tint(plate, POSTIT_COLOR)
     this.makeDecorative(plate)
-    this.noteTitle = this.addText(this.notePaper, "", new vec3(-2.5, 9.3, 0.7), 27, 13.5, 2.6)
-    this.addSurfaceButton(this.notePaper, "EditTitle", "✏", new vec3(5.6, 9.3, 0.7), 2.8, 2.6, () => this.openKeyboard(this.noteTaskIndex))
-    this.addSurfaceButton(this.notePaper, "NoteClose", "✕", new vec3(9.2, 9.3, 0.7), 2.8, 2.6, () => this.closeNotePaper())
-    this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(0, 3.5, 0.7), 20, 7.5, () => this.openNoteKeyboard())
-    this.noteSteps = this.addText(this.notePaper, "", new vec3(0, -3.2, 0.7), 18, 20, 5.6)
-    // Ajuste fino de a 1 minuto en el post-it; el ajuste grueso de ±5 vive en la card.
-    this.addSurfaceButton(this.notePaper, "NoteMinus", "−", new vec3(-8.7, -8.2, 0.7), 2.6, 2.8, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: -1}))
-    this.noteEstimate = this.addText(this.notePaper, "⏱ 15m", new vec3(-4.6, -8.2, 0.7), 24, 5.2, 2.8)
-    this.addSurfaceButton(this.notePaper, "NotePlus", "+", new vec3(-0.5, -8.2, 0.7), 2.6, 2.8, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: 1}))
-    this.addSurfaceButton(this.notePaper, "NoteEstimate", STR.estimateButton, new vec3(5.9, -8.2, 0.7), 8.6, 2.8, () => this.estimateEvent.invoke(this.noteTaskIndex))
+    this.noteTitle = this.addText(this.notePaper, "", new vec3(-1.5, 9.3, 0.7), 27, 15, 2.6)
+    const closeBtn = this.addImage(this.notePaper, "NoteClose", TEX_POSTIT.close, new vec3(9.3, 9.4, 0.7), 2.4)
+    this.makeInteractive(closeBtn.object, 3, 3, () => this.closeNotePaper())
+    this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(0, 4, 0.7), 20, 6.6, () => this.openNoteKeyboard())
+    this.noteSteps = this.addText(this.notePaper, "", new vec3(0, -1.6, 0.7), 18, 20, 4.6)
+    const addStep = this.addImage(this.notePaper, "AddStep", TEX_POSTIT.addStep, new vec3(0, -4.9, 0.7), 8.2)
+    this.makeInteractive(addStep.object, 8.6, 2.4, () => this.openNoteKeyboard())
+    // Fila desplegable de tiempo: aparece al tocar el icono time.
+    this.noteTimeRow = this.obj(this.notePaper, "TimeRow", new vec3(0, -7.2, 0.9))
+    this.addSurfaceButton(this.noteTimeRow, "NoteMinus", "−", new vec3(-8.2, 0, 0), 2.6, 2.6, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: -1}))
+    this.noteEstimate = this.addText(this.noteTimeRow, "⏱ 15m", new vec3(-4.4, 0, 0), 22, 4.8, 2.6)
+    this.addSurfaceButton(this.noteTimeRow, "NotePlus", "+", new vec3(-0.7, 0, 0), 2.6, 2.6, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: 1}))
+    this.addSurfaceButton(this.noteTimeRow, "NoteEstimate", STR.estimateButton, new vec3(5.4, 0, 0), 8.2, 2.6, () => this.estimateEvent.invoke(this.noteTaskIndex))
+    this.noteTimeRow.enabled = false
+    // Botonera del post-it con los iconos del diseño: edit / time / remind / delete.
+    const postitButtons: [string, Texture, () => void][] = [
+      ["PEdit", TEX_POSTIT.edit, () => this.openKeyboard(this.noteTaskIndex)],
+      ["PTime", TEX_POSTIT.time, () => { if (this.noteTimeRow) this.noteTimeRow.enabled = !this.noteTimeRow.enabled }],
+      ["PRemind", TEX_POSTIT.remind, () => this.reminderEvent.invoke()],
+      ["PDelete", TEX_POSTIT.del, () => { this.closeNotePaper(); this.deleteEvent.invoke(this.noteTaskIndex) }],
+    ]
+    for (let i = 0; i < postitButtons.length; i++) {
+      const [name, tex, action] = postitButtons[i]
+      const btn = this.addImage(this.notePaper, name, tex, new vec3(-7.7 + i * 5.1, -9.8, 0.7), 3.4)
+      this.makeInteractive(btn.object, 3.8, 3.8, action)
+    }
     this.notePaper.enabled = false
   }
 
@@ -521,6 +605,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
 
   private openNotePaper(index: number): void {
     this.noteTaskIndex = index
+    if (this.noteTimeRow) this.noteTimeRow.enabled = false
     this.refreshNotePaper()
     if (this.notePaper) this.notePaper.enabled = true
   }

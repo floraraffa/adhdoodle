@@ -60,6 +60,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     this.panel.onEstimateRequested.add((taskIndex) => this.estimateWithAI(taskIndex))
     this.panel.onCheckIn.add((drifted) => this.handleCheckIn(drifted))
     this.panel.onCardSelected.add((index) => { this.state.selectCard(index); this.play(this.tapAudio); this.panel.setCoach(STR.coachCard); this.render() })
+    this.panel.onDelete.add((index) => { if (this.state.deleteTask(index)) { this.play(this.tapAudio); this.render(); this.saveState() } })
     this.panel.onFocusPause.add(() => this.pauseFromFocus())
     this.panel.onFocusDone.add(() => { const running = this.state.runningContext; if (running) { this.state.selectCard(running.cardIndex); this.complete(running.taskIndex) } })
     this.panel.onTaskEdited.add(({taskIndex, text}) => { this.state.selectTask(taskIndex); this.state.upsertTask(taskIndex, text); this.render(); this.saveState() })

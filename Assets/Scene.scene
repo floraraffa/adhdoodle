@@ -4151,12 +4151,13 @@
   Enabled: true
   ScriptAsset: !<reference> dd105587-99e8-4fbc-a286-7433bcce3fe8
   ScriptInputsDefault:
-    {}
+    meditationTracks: true
   ScriptTypesDefault:
     {}
   ScriptInputs:
     "":
-      {}
+      meditationTracks: !<reference.AudioTrackAsset[]>
+        []
   ScriptTypes:
     "":
       {}
