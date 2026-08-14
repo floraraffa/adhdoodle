@@ -97,4 +97,4 @@ Five rapid review rounds between Flor (design direction + asset production) and 
 - **Cloud-guided onboarding**: on first launch the focus cloud offers a tour ("▶ Show me / Skip tutorial") and walks through 5 steps — spaces & tabs, adding tasks & the AI post-it, Focus Mode, the gentle drift nudges, check-ins & meditation music. Completion persists; it never nags again.
 - **Meditation playlist** now auto-advances track to track (pause-aware) instead of looping one song.
 - Focus Mode gained a soft 10-second tick and an end-of-timer chime.
-- English README written; secret scan over all tracked files (clean); **public repo created and pushed: https://github.com/floraraffa/focus-organizer-specs**
+- English README written; secret scan over all tracked files (clean); **public repo created and pushed: https://github.com/floraraffa/adhdoodle**
