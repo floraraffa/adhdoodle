@@ -81,6 +81,12 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     const second = Math.ceil(running?.task.remainingSeconds ?? this.state.activeTask?.remainingSeconds ?? 0)
     if (second !== this.lastSecond) this.render()
     if (!this.focusMode) this.checkReminder(running)
+    if (running && this.reminderMinutes > 0) {
+      const interval = this.reminderMinutes * 60
+      this.panel.setReminderProgress(1 - (running.task.focusElapsedSeconds % interval) / interval)
+    } else {
+      this.panel.setReminderProgress(null)
+    }
     this.sentinel.update(getDeltaTime())
     if (this.focusMode && running) this.panel.renderFocus(running.task.title, running.task.remainingSeconds)
     if (this.focusMode && !running) this.exitFocus()
