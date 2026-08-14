@@ -51,6 +51,10 @@ const TEX_POSTIT = {
   addStep: requireAsset("../DesignAssets/postit-add-step.png") as Texture,
   fondo: requireAsset("../DesignAssets/postit-fondo.png") as Texture,
 }
+const TEX_MUSIC = {
+  play: requireAsset("../DesignAssets/music-play.png") as Texture,
+  next: requireAsset("../DesignAssets/music-next.png") as Texture,
+}
 // Los Image creados en runtime no traen material: se clona el del UIKit.
 const IMAGE_MATERIAL = requireAsset("../../Packages/SpectaclesUIKit.lspkg/Materials/Image.mat") as Material
 // Tipografía handscript del diseño (Cheese Milky) — grande, como en la referencia.
@@ -341,7 +345,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.reminderOverlay.getSceneObject().enabled = false
     // El coach habla desde el globito de la nube (arriba a la derecha),
     // con texto grande e inclinado acompañando al globo.
-    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.7, 20.3, 0.9), 15, 4.8, 2.4)
+    this.coachText = this.addText(this.detailRoot, STR.coachStart, new vec3(5.7, 20.35, 0.9), 19, 5, 3)
     this.coachText.horizontalOverflow = HorizontalOverflow.Wrap
     this.tilt(this.coachText, 6)
     // Popup de tiempo: total manual + estimación con IA, para la tarea seleccionada.
@@ -370,8 +374,10 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.addText(this.musicPopup, "🧘 Meditation", new vec3(-1.4, 3.1, 0.6), 30, 13, 2.8)
     this.addSurfaceButton(this.musicPopup, "MusicClose", "✕", new vec3(7.9, 3.1, 0.6), 2.6, 2.4, () => { if (this.musicPopup) this.musicPopup.enabled = false })
     this.musicLabel = this.addText(this.musicPopup, "", new vec3(0, 0.4, 0.6), 18, 16, 2.6)
-    this.addSurfaceButton(this.musicPopup, "MusicPlay", "▶ / Ⅱ", new vec3(-4, -2.8, 0.6), 6.5, 3, () => this.toggleMusic())
-    this.addSurfaceButton(this.musicPopup, "MusicNext", "⏭ next", new vec3(4, -2.8, 0.6), 6.5, 3, () => this.nextMusic())
+    const playButton = this.addImage(this.musicPopup, "MusicPlay", TEX_MUSIC.play, new vec3(-3.5, -2.6, 0.6), 4.2)
+    this.makeInteractive(playButton.object, 4.6, 4.8, () => this.toggleMusic())
+    const nextButton = this.addImage(this.musicPopup, "MusicNext", TEX_MUSIC.next, new vec3(3.5, -2.6, 0.6), 4.2)
+    this.makeInteractive(nextButton.object, 4.6, 4.8, () => this.nextMusic())
     this.musicPopup.enabled = false
     this.checkInRoot = this.obj(this.detailRoot, "CheckIn", new vec3(0, -14.2, 3))
     this.addSurfaceButton(this.checkInRoot, "CheckFocused", STR.checkFocused, new vec3(-5.6, 0, 0), 8, 3.6, () => { this.hideCheckIn(); this.checkInEvent.invoke(false) })
@@ -434,6 +440,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     if (!this.musicLabel) return
     if (this.meditationTracks.length === 0) {
       this.musicLabel.text = "Add tracks in Lens Studio →\nmeditationTracks"
+      // (al cargar pistas, acá aparece el título de la música)
       return
     }
     const name = this.meditationTracks[this.musicIndex]?.name ?? ""
@@ -605,7 +612,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.noteBadgeObject = badge.object
     // Caja de notas grande y translúcida: ocupa hasta el + add step, así entran
     // muchas líneas sin achicar el texto. Nota + pasos ☐ conviven acá.
-    this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(-0.3, 1.7, 0.7), 16, 8.6, () => this.openNoteKeyboard(), (plate) => this.setPlateOpacity(plate, 0.5))
+    this.noteBody = this.addSurfaceButton(this.notePaper, "NoteBody", "", new vec3(-0.3, 2.4, 0.7), 15.5, 6.9, () => this.openNoteKeyboard(), (plate) => this.setPlateOpacity(plate, 0.5))
     this.noteBody.getSceneObject().getParent()!.getTransform().setLocalRotation(quat.angleAxis((2 * Math.PI) / 180, new vec3(0, 0, 1)))
     this.noteBody.horizontalOverflow = HorizontalOverflow.Wrap
     this.noteSteps = this.addText(this.notePaper, "", new vec3(-0.3, -1.1, 0.7), 18, 16, 3.6)
@@ -614,10 +621,11 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.makeInteractive(addStep.object, 8.6, 2.4, () => this.openNoteKeyboard())
     // Fila desplegable de tiempo (icono time): pisa la zona del add-step.
     this.noteTimeRow = this.obj(this.notePaper, "TimeRow", new vec3(0, -3.7, 1.1))
-    this.addSurfaceButton(this.noteTimeRow, "NoteMinus", "−", new vec3(-8.2, 0, 0), 2.6, 2.6, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: -1}))
-    this.noteEstimate = this.addText(this.noteTimeRow, "⏱ 15m", new vec3(-4.4, 0, 0), 22, 4.8, 2.6)
-    this.addSurfaceButton(this.noteTimeRow, "NotePlus", "+", new vec3(-0.7, 0, 0), 2.6, 2.6, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: 1}))
-    this.addSurfaceButton(this.noteTimeRow, "NoteEstimate", STR.estimateButton, new vec3(5.4, 0, 0), 8.2, 2.6, () => this.estimateEvent.invoke(this.noteTaskIndex))
+    this.addSurfaceButton(this.noteTimeRow, "NoteMinus", "−", new vec3(-6.2, 0, 0), 2.4, 2.4, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: -1}))
+    this.noteEstimate = this.addText(this.noteTimeRow, "⏱ 15m", new vec3(-3.7, 0, 0), 20, 4.2, 2.4)
+    this.addSurfaceButton(this.noteTimeRow, "NotePlus", "+", new vec3(-1.2, 0, 0), 2.4, 2.4, () => this.timeEvent.invoke({taskIndex: this.noteTaskIndex, delta: 1}))
+    const estimateLabel = this.addSurfaceButton(this.noteTimeRow, "NoteEstimate", STR.estimateButton, new vec3(3.9, 0, 0), 6.4, 2.4, () => this.estimateEvent.invoke(this.noteTaskIndex))
+    estimateLabel.size = 26
     this.noteTimeRow.enabled = false
     // Botonera adentro del papel, pareja como en la referencia (la nube asoma detrás).
     const postitButtons: [string, Texture, () => void][] = [

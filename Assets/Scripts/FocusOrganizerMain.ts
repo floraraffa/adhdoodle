@@ -33,6 +33,7 @@ export class FocusOrganizerMain extends BaseScriptComponent {
   private reminderKey = ""
   private reminderBucket = 0
   private sinceLastSave = 0
+  private focusTick = 0
   private focusMode = false
   private sentinel = new FocusSentinel(() => this.onDistractionCandidate())
   private nudgeIndex = 0
@@ -99,8 +100,16 @@ export class FocusOrganizerMain extends BaseScriptComponent {
     if (running) {
       this.sinceLastSave += getDeltaTime()
       if (this.sinceLastSave >= RUNNING_SAVE_INTERVAL) this.saveState()
+      // Tick suave cada 10 s dentro del Focus Mode: el tiempo se siente pasar.
+      if (this.focusMode) {
+        this.focusTick += getDeltaTime()
+        if (this.focusTick >= 10) { this.focusTick = 0; this.play(this.tapAudio) }
+      }
+    } else {
+      this.focusTick = 0
     }
     if (delayed) {
+      this.play(this.reminderAudio) // sonido de cierre del timer
       this.state.selectCard(delayed.cardIndex); this.state.selectTask(delayed.taskIndex); this.render(); this.saveState()
       const task = this.state.activeTask
       if (task) this.coach.guideDelay(this.state.activeCard.category, task).then((message) => this.panel.setCoach(message))
