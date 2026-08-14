@@ -449,32 +449,42 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
 
   private toggleMusic(): void {
     if (this.meditationTracks.length === 0) return
-    if (!this.musicAudio) {
-      this.musicAudio = this.sceneObject.createComponent("Component.AudioComponent") as AudioComponent
-      this.musicAudio.volume = 0.5
-    }
     if (this.musicPlaying) {
-      this.musicAudio.pause()
+      this.musicAudio?.pause()
       this.musicPlaying = false
-    } else {
-      if (this.musicAudio.audioTrack !== this.meditationTracks[this.musicIndex]) {
-        this.musicAudio.audioTrack = this.meditationTracks[this.musicIndex]
-        this.musicAudio.play(-1)
-      } else if (!this.musicAudio.resume()) {
-        this.musicAudio.play(-1)
-      }
-      this.musicPlaying = true
+      this.refreshMusicPopup()
+      return
     }
-    this.refreshMusicPopup()
+    this.musicPlaying = true
+    if (this.musicAudio && this.musicAudio.audioTrack === this.meditationTracks[this.musicIndex] && this.musicAudio.resume()) {
+      this.refreshMusicPopup()
+      return
+    }
+    this.startTrack()
   }
 
   private nextMusic(): void {
     if (this.meditationTracks.length === 0) return
     this.musicIndex = (this.musicIndex + 1) % this.meditationTracks.length
-    if (this.musicAudio && this.musicPlaying) {
-      this.musicAudio.audioTrack = this.meditationTracks[this.musicIndex]
-      this.musicAudio.play(-1)
+    if (this.musicPlaying) this.startTrack()
+    else this.refreshMusicPopup()
+  }
+
+  // Reproduce la pista actual UNA vez; al terminar avanza sola a la siguiente
+  // (playlist continua, nunca la misma canción en loop).
+  private startTrack(): void {
+    if (!this.musicAudio) {
+      this.musicAudio = this.sceneObject.createComponent("Component.AudioComponent") as AudioComponent
+      this.musicAudio.volume = 0.5
     }
+    this.musicAudio.audioTrack = this.meditationTracks[this.musicIndex]
+    this.musicAudio.play(1)
+    this.musicAudio.setOnFinish(() => {
+      if (!this.musicPlaying) return
+      this.musicIndex = (this.musicIndex + 1) % this.meditationTracks.length
+      this.startTrack()
+      this.refreshMusicPopup()
+    })
     this.refreshMusicPopup()
   }
 
