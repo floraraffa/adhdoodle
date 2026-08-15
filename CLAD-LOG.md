@@ -99,9 +99,9 @@ Five rapid review rounds between Flor (design direction + asset production) and 
 - Focus Mode gained a soft 10-second tick and an end-of-timer chime.
 - English README written; secret scan over all tracked files (clean); **public repo created and pushed: https://github.com/floraraffa/adhdoodle**
 
-## Day 2, device feedback round — Aug 14, 2026 (real SPECS tester)
+## Day 2, device feedback round — Aug 14, 2026 (QA tester)
 
-A friend tested on real SPECS hardware and sent notes; fixes within the hour:
+A friend tested and sent notes; fixes within the hour:
 
 - **All type +17%** globally (the waveguide eats small text); tutorial body up again.
 - **Neighbor pages tucked into the narrow FOV**: closer (±26 cm), smaller and deeper, ±2 pages hidden — no more clipped "Work"/"Me time".
