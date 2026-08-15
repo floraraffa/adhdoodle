@@ -587,7 +587,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     // Musiquita de apertura (~5 s): la de Flor si está cargada, si no la generada.
     const jingle = this.sceneObject.createComponent("Component.AudioComponent") as AudioComponent
     jingle.audioTrack = this.introJingle.length > 0 ? this.introJingle[0] : DEFAULT_JINGLE
-    jingle.volume = 0.55
+    jingle.volume = 0.3
     jingle.play(1)
     if (this.logoRoot) this.logoRoot.enabled = true
     this.updateCarouselTargets()
