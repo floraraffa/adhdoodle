@@ -52,6 +52,7 @@ const TEX_POSTIT = {
   fondo: requireAsset("../DesignAssets/postit-fondo.png") as Texture,
 }
 const TEX_LOGO = requireAsset("../DesignAssets/logo.png") as Texture
+const DEFAULT_JINGLE = requireAsset("../GeneratedSFX/IntroJingle.wav") as AudioTrackAsset
 const TEX_MUSIC = {
   play: requireAsset("../DesignAssets/music-play.png") as Texture,
   next: requireAsset("../DesignAssets/music-next.png") as Texture,
@@ -132,6 +133,7 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
   private tutorialRoot: SceneObject | null = null
   private tutorialText: Text | null = null
   private tutorialEmphasis: Text | null = null
+  private tutorialBubbleLabel: Text | null = null
   private tutorialButton1: Text | null = null
   private tutorialButton2: Text | null = null
   private tutorialStep = -1
@@ -548,8 +550,9 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.makeDecorative(plate)
     // La nube bien adelante (z alto propio) para que no pelee con otros materiales.
     this.addImage(this.tutorialRoot, "TutorialCloud", TEX_CLOUD, new vec3(6.5, 7.8, 2), 14)
-    const bubbleLabel = this.addText(this.tutorialRoot, "Tutorial", new vec3(3.4, 10.2, 2.6), 26, 5.2, 2.4)
-    this.tilt(bubbleLabel, 6)
+    this.tutorialBubbleLabel = this.addText(this.tutorialRoot, `${STR.hello}! ☁️`, new vec3(3.4, 10.2, 2.6), 24, 5.4, 2.6)
+    this.tutorialBubbleLabel.horizontalOverflow = HorizontalOverflow.Wrap
+    this.tilt(this.tutorialBubbleLabel, 6)
     this.tutorialEmphasis = this.addText(this.tutorialRoot, STR.tutorialWelcomeBold, new vec3(0, 3.9, 1), 32, 24, 3.2)
     this.boldify(this.tutorialEmphasis)
     this.tutorialText = this.addText(this.tutorialRoot, STR.tutorialWelcome, new vec3(0, 0.4, 1), 30, 24, 6)
@@ -581,12 +584,11 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
     this.pendingTutorial = withTutorial
     this.introActive = true
     this.introElapsed = 0
-    if (this.introJingle.length > 0) {
-      const jingle = this.sceneObject.createComponent("Component.AudioComponent") as AudioComponent
-      jingle.audioTrack = this.introJingle[0]
-      jingle.volume = 0.55
-      jingle.play(1)
-    }
+    // Musiquita de apertura (~5 s): la de Flor si está cargada, si no la generada.
+    const jingle = this.sceneObject.createComponent("Component.AudioComponent") as AudioComponent
+    jingle.audioTrack = this.introJingle.length > 0 ? this.introJingle[0] : DEFAULT_JINGLE
+    jingle.volume = 0.55
+    jingle.play(1)
     if (this.logoRoot) this.logoRoot.enabled = true
     this.updateCarouselTargets()
   }
@@ -622,6 +624,14 @@ export class FocusOrganizerPanelUI extends BaseScriptComponent {
 
   private openTutorial(): void {
     this.tutorialStep = -1
+    // El globo saluda por el nombre: "Hello Flor!"
+    try {
+      global.userContextSystem.requestDisplayName((displayName: string) => {
+        if (this.tutorialBubbleLabel && displayName && displayName.length > 0) {
+          this.tutorialBubbleLabel.text = `${STR.hello}\n${displayName.split(" ")[0]}!`
+        }
+      })
+    } catch (error) { print(`[Tutorial] sin nombre de usuario: ${error}`) }
     if (this.tutorialEmphasis) this.tutorialEmphasis.text = STR.tutorialWelcomeBold
     if (this.tutorialText) this.tutorialText.text = STR.tutorialWelcome
     if (this.tutorialButton1) this.tutorialButton1.text = STR.tutorialStart
